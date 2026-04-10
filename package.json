@@ -39,11 +39,11 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/agooxo-puss/AIpuss-browser.git"
+    "url": "git+https://github.com/AIpuss/AIpuss-browser.git"
   },
   "bugs": {
-    "url": "https://github.com/agooxo-puss/AIpuss-browser/issues"
+    "url": "https://github.com/AIpuss/AIpuss-browser/issues"
   },
-  "homepage": "https://github.com/agooxo-puss/AIpuss-browser#readme",
+  "homepage": "https://github.com/AIpuss/AIpuss-browser#readme",
   "devDependencies": {}
 }

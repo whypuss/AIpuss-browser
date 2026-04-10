@@ -41,7 +41,7 @@ agent-browser install  # Download Chrome from Chrome for Testing (first time onl
 ### From Source
 
 ```bash
-git clone https://github.com/agooxo-puss/AIpuss-browser
+git clone https://github.com/AIpuss/AIpuss-browser
 cd AIpuss-browser
 pnpm install
 pnpm build
