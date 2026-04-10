@@ -1,6 +1,6 @@
-# agent-browser
+# AIpuss-browser
 
-Browser automation CLI for AI agents. Fast native Rust CLI.
+AI-first browser automation CLI for AI agents. Powered by Rust + CDP + opencli (500+ site adapters).
 
 ## Installation
 
@@ -41,8 +41,8 @@ agent-browser install  # Download Chrome from Chrome for Testing (first time onl
 ### From Source
 
 ```bash
-git clone https://github.com/vercel-labs/agent-browser
-cd agent-browser
+git clone https://github.com/agooxo-puss/AIpuss-browser
+cd AIpuss-browser
 pnpm install
 pnpm build
 pnpm build:native   # Requires Rust (https://rustup.rs)

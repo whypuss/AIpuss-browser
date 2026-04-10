@@ -1,5 +1,5 @@
 {
-  "name": "@agent-browser/opencli-host",
+  "name": "@aipuss-browser/opencli-host",
   "version": "0.1.0",
   "description": "Node.js bridge between agent-browser (Rust) and opencli — exposes 90+ site adapters as AI-agent tools",
   "type": "module",

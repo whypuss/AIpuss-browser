@@ -1,13 +1,13 @@
 [package]
-name = "agent-browser"
+name = "aipuss-browser"
 version = "0.25.3"
 edition = "2021"
-description = "Fast browser automation CLI for AI agents"
+description = "AI-first browser automation CLI — powered by Rust + CDP + opencli (500+ site adapters)"
 license = "Apache-2.0"
-repository = "https://github.com/vercel-labs/agent-browser"
-homepage = "https://agent-browser.dev"
+repository = "https://github.com/agooxo-puss/AIpuss-browser"
+homepage = "https://github.com/agooxo-puss/AIpuss-browser#readme"
 readme = "../README.md"
-keywords = ["browser", "automation", "ai", "cdp", "chrome"]
+keywords = ["browser", "automation", "ai", "cdp", "chrome", "opencli"]
 categories = ["command-line-utilities", "web-programming"]
 
 [dependencies]

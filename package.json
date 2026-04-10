@@ -1,7 +1,7 @@
 {
-  "name": "agent-browser",
+  "name": "aipuss-browser",
   "version": "0.25.3",
-  "description": "Browser automation CLI for AI agents",
+  "description": "AI-first browser automation CLI — powered by Rust + CDP + opencli (500+ site adapters)",
   "type": "module",
   "files": [
     "bin",
@@ -9,7 +9,8 @@
     "skills"
   ],
   "bin": {
-    "agent-browser": "./bin/agent-browser.js"
+    "agent-browser": "./bin/agent-browser.js",
+    "aipuss-browser": "./bin/agent-browser.js"
   },
   "scripts": {
     "version:sync": "node scripts/sync-version.js",
@@ -31,16 +32,18 @@
     "chrome",
     "cdp",
     "cli",
-    "agent"
+    "agent",
+    "ai",
+    "opencli"
   ],
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/vercel-labs/agent-browser.git"
+    "url": "git+https://github.com/agooxo-puss/AIpuss-browser.git"
   },
   "bugs": {
-    "url": "https://github.com/vercel-labs/agent-browser/issues"
+    "url": "https://github.com/agooxo-puss/AIpuss-browser/issues"
   },
-  "homepage": "https://agent-browser.dev",
+  "homepage": "https://github.com/agooxo-puss/AIpuss-browser#readme",
   "devDependencies": {}
 }
