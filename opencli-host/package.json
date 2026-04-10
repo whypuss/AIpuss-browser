@@ -1,0 +1,20 @@
+{
+  "name": "@agent-browser/opencli-host",
+  "version": "0.1.0",
+  "description": "Node.js bridge between agent-browser (Rust) and opencli — exposes 90+ site adapters as AI-agent tools",
+  "type": "module",
+  "main": "index.js",
+  "bin": {
+    "opencli-host": "./index.js"
+  },
+  "scripts": {
+    "start": "node index.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@jackwener/opencli": "^1.7.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

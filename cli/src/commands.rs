@@ -626,6 +626,119 @@ fn parse_command_inner(args: &[String], flags: &Flags) -> Result<Value, ParseErr
         // === Inspect ===
         "inspect" => Ok(json!({ "id": id, "action": "inspect" })),
 
+        // === OpenCLI Integration (90+ site adapters) ===
+        "opencli" => {
+            let sub = rest.first().map(|s| *s);
+            match sub {
+                Some("list") => {
+                    // agent-browser opencli list [--format json|text]
+                    let format = if rest.contains(&"--json") {
+                        "json"
+                    } else {
+                        "text"
+                    };
+                    Ok(json!({
+                        "id": id,
+                        "action": "opencli_list",
+                        "format": format
+                    }))
+                }
+                Some("detect") => {
+                    // agent-browser opencli detect <url>
+                    let url = rest.get(1).ok_or_else(|| ParseError::MissingArguments {
+                        context: "opencli detect".to_string(),
+                        usage: "agent-browser opencli detect <url>",
+                    })?;
+                    Ok(json!({
+                        "id": id,
+                        "action": "opencli_detect",
+                        "url": url
+                    }))
+                }
+                Some("explore") => {
+                    // agent-browser opencli explore <url> [--timeout 120]
+                    let url = rest.get(1).ok_or_else(|| ParseError::MissingArguments {
+                        context: "opencli explore".to_string(),
+                        usage: "agent-browser opencli explore <url>",
+                    })?;
+                    let timeout = rest
+                        .iter()
+                        .position(|r| r == &"--timeout")
+                        .and_then(|i| rest.get(i + 1))
+                        .and_then(|v| v.parse::<u64>().ok())
+                        .unwrap_or(120);
+                    Ok(json!({
+                        "id": id,
+                        "action": "opencli_explore",
+                        "url": url,
+                        "timeout": timeout
+                    }))
+                }
+                Some("generate") => {
+                    // agent-browser opencli generate <url> [--name X] [--force]
+                    let url = rest.get(1).ok_or_else(|| ParseError::MissingArguments {
+                        context: "opencli generate".to_string(),
+                        usage: "agent-browser opencli generate <url>",
+                    })?;
+                    let name = rest
+                        .iter()
+                        .position(|r| r == &"--name")
+                        .and_then(|i| rest.get(i + 1).map(|v| *v));
+                    let force = rest.contains(&"--force");
+                    Ok(json!({
+                        "id": id,
+                        "action": "opencli_generate",
+                        "url": url,
+                        "name": name,
+                        "force": force
+                    }))
+                }
+                None => {
+                    // agent-browser opencli <site> <command> [args...]
+                    Err(ParseError::MissingArguments {
+                        context: "opencli".to_string(),
+                        usage: "agent-browser opencli <site> <command> [args...]\n\
+                                agent-browser opencli list\n\
+                                agent-browser opencli detect <url>\n\
+                                agent-browser opencli explore <url>\n\
+                                agent-browser opencli generate <url>",
+                    })
+                }
+                Some(_) => {
+                    // agent-browser opencli <site> <command> [args...]
+                    // Pass through to opencli-host for execution
+                    let site = sub.unwrap();
+                    let command = rest.get(1).map(|s| *s).unwrap_or("help");
+                    let rest_args = &rest[2..];
+                    let mut args_map = serde_json::Map::new();
+                    let mut i = 0;
+                    while i < rest_args.len() {
+                        let arg = rest_args[i];
+                        if arg.starts_with("--") {
+                            let key = arg.trim_start_matches("--");
+                            // Check if next arg is a value (not a flag)
+                            if i + 1 < rest_args.len() && !rest_args[i + 1].starts_with("--") {
+                                args_map.insert(key.to_string(), serde_json::json!(rest_args[i + 1]));
+                                i += 2;
+                            } else {
+                                args_map.insert(key.to_string(), serde_json::json!(true));
+                                i += 1;
+                            }
+                        } else {
+                            i += 1;
+                        }
+                    }
+                    Ok(json!({
+                        "id": id,
+                        "action": "opencli_run",
+                        "site": site,
+                        "command": command,
+                        "args": args_map
+                    }))
+                }
+            }
+        }
+
         // === Authentication Vault ===
         "auth" => {
             let sub = rest.first().map(|s| s.as_ref());

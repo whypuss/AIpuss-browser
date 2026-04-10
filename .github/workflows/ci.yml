@@ -121,8 +121,36 @@ jobs:
         run: |
           cargo run --manifest-path cli/Cargo.toml -- install --with-deps
 
+      - name: Install opencli for integration tests
+        run: npm install -g @jackwener/opencli
+
       - name: Run e2e tests
         run: cargo test --profile ci --manifest-path cli/Cargo.toml e2e -- --ignored --test-threads=1
+
+  opencli-host:
+    name: OpenCLI Host
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install opencli
+        run: npm install -g @jackwener/opencli
+
+      - name: Install opencli-host dependencies
+        run: npm install
+        working-directory: opencli-host
+
+      - name: Test opencli-host
+        run: node opencli-host/index.js &
+          sleep 2
+          echo '{"jsonrpc":"2.0","id":1,"method":"opencli.list","params":{"format":"json"}}' | node opencli-host/index.js
+          opencli list
 
   windows-integration:
     name: Windows Integration Test
