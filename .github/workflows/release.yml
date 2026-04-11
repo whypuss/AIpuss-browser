@@ -6,7 +6,7 @@ on:
       - main
   workflow_dispatch:
 
-concurrency: ${{ github.workflow }}-${{ github.ref }
+concurrency: ${{ github.workflow }}-${{ github.ref }}
 
 permissions:
   contents: write
