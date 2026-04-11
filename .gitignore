@@ -67,3 +67,8 @@ docs/package-lock.json
 # next
 .next/
 out/
+
+# Rust workspace build artifacts (at root)
+target/
+debug/
+release/

@@ -9,8 +9,8 @@ import { ThemeProvider } from "@/components/theme-provider";
 const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
 
 export const metadata: Metadata = {
-  title: "agent-browser",
-  description: "Observability dashboard for agent-browser",
+  title: "aipuss-browser",
+  description: "Observability dashboard for aipuss-browser",
 };
 
 export default function RootLayout({
@@ -21,7 +21,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={cn("font-sans antialiased", geist.variable)} suppressHydrationWarning>
       <body>
-        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
+        <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
           <JotaiProvider>
             <TooltipProvider>{children}</TooltipProvider>
           </JotaiProvider>
