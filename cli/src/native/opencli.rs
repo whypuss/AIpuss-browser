@@ -21,7 +21,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::{ChildStdin, ChildStdout};
-use tokio::sync::RwLock;
+use tokio::sync::{Mutex, RwLock};
 use tokio::time::timeout;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -135,7 +135,7 @@ struct JsonRpcError {
 /// Spawned once, reused across all opencli calls.
 pub struct OpenCliHost {
     stdin: Arc<RwLock<ChildStdin>>,
-    stdout: BufReader<ChildStdout>,
+    stdout: Arc<Mutex<BufReader<ChildStdout>>>,
     next_id: Arc<RwLock<u64>>,
     pub ready: Arc<RwLock<bool>>,
 }
@@ -168,14 +168,15 @@ impl OpenCliHost {
 
         let host = Self {
             stdin: Arc::new(RwLock::new(stdin)),
-            stdout: BufReader::new(stdout),
+            stdout: Arc::new(Mutex::new(BufReader::new(stdout))),
             next_id: Arc::new(RwLock::new(1)),
             ready: Arc::new(RwLock::new(false)),
         };
 
         // Wait for the "ready" notification
-        let deadline = tokio::time::sleep(Duration::from_secs(10));
-        timeout(deadline, host.wait_ready()).await??;
+        timeout(Duration::from_secs(10), host.wait_ready())
+            .await
+            .map_err(|_| OpenCliError::Timeout)??;
 
         Ok(host)
     }
@@ -183,7 +184,7 @@ impl OpenCliHost {
     async fn wait_ready(&self) -> Result<(), OpenCliError> {
         let mut line = String::new();
         loop {
-            self.stdout.read_line(&mut line).await.map_err(|e| {
+            self.stdout.lock().await.read_line(&mut line).await.map_err(|e| {
                 OpenCliError::Communication(format!("read_line failed: {e}"))
             })?;
             let trimmed = line.trim();
@@ -229,8 +230,7 @@ impl OpenCliHost {
 
         // Read response
         let mut line = String::new();
-        let deadline = tokio::time::sleep(Duration::from_secs(120));
-        timeout(deadline, self.stdout.read_line(&mut line)).await
+        timeout(Duration::from_secs(120), self.stdout.lock().await.read_line(&mut line)).await
             .map_err(|_| OpenCliError::Timeout)?
             .map_err(|e| OpenCliError::Communication(format!("read_line failed: {e}")))?;
 

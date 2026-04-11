@@ -6,7 +6,83 @@ use tokio::io::AsyncWriteExt;
 
 use super::http::cors_headers_for_origin;
 
-pub(crate) const DEFAULT_AI_GATEWAY_URL: &str = "https://ai-gateway.vercel.sh";
+/// Supported AI providers
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AiProvider {
+    Nvidia,
+    OpenAI,
+    Anthropic,
+    SiliconFlow,
+    OpenRouter,
+    Custom,
+}
+
+impl AiProvider {
+    pub fn from_env() -> Self {
+        match std::env::var("AI_PROVIDER")
+            .unwrap_or_default()
+            .to_lowercase()
+            .as_str()
+        {
+            "nvidia" => AiProvider::Nvidia,
+            "openai" => AiProvider::OpenAI,
+            "anthropic" => AiProvider::Anthropic,
+            "siliconflow" | "silicon_flow" => AiProvider::SiliconFlow,
+            "openrouter" => AiProvider::OpenRouter,
+            "custom" => AiProvider::Custom,
+            _ => AiProvider::Nvidia,
+        }
+    }
+
+    pub fn base_url(&self) -> &'static str {
+        match self {
+            AiProvider::Nvidia => "https://integrate.api.nvidia.com/v1",
+            AiProvider::OpenAI => "https://api.openai.com/v1",
+            AiProvider::Anthropic => "https://api.anthropic.com/v1",
+            AiProvider::SiliconFlow => "https://api.siliconflow.cn/v1",
+            AiProvider::OpenRouter => "https://openrouter.ai/api/v1",
+            AiProvider::Custom => "",
+        }
+    }
+
+    pub fn default_model(&self) -> &'static str {
+        match self {
+            AiProvider::Nvidia => "meta/llama-3.2-11b-vision-instruct",
+            AiProvider::OpenAI => "gpt-4o-mini",
+            AiProvider::Anthropic => "claude-sonnet-4-5",
+            AiProvider::SiliconFlow => "deepseek-ai/DeepSeek-V3",
+            AiProvider::OpenRouter => "openai/gpt-4o-mini",
+            AiProvider::Custom => "gpt-4o-mini",
+        }
+    }
+}
+
+pub fn get_ai_provider() -> AiProvider {
+    AiProvider::from_env()
+}
+
+pub fn get_ai_base_url() -> String {
+    std::env::var("AI_BASE_URL")
+        .ok()
+        .filter(|u| !u.is_empty())
+        .unwrap_or_else(|| get_ai_provider().base_url().to_string())
+}
+
+pub fn get_ai_api_key() -> Option<String> {
+    std::env::var("AI_API_KEY")
+        .ok()
+        .filter(|k| !k.is_empty())
+        .or_else(|| std::env::var("NVIDIA_API_KEY").ok().filter(|k| !k.is_empty()))
+        .or_else(|| std::env::var("OPENAI_API_KEY").ok().filter(|k| !k.is_empty()))
+        .or_else(|| std::env::var("ANTHROPIC_API_KEY").ok().filter(|k| !k.is_empty()))
+}
+
+pub fn get_ai_model() -> String {
+    std::env::var("AI_MODEL")
+        .ok()
+        .filter(|m| !m.is_empty())
+        .unwrap_or_else(|| get_ai_provider().default_model().to_string())
+}
 
 static HTTP_CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
 
@@ -15,16 +91,17 @@ pub(crate) fn http_client() -> &'static reqwest::Client {
 }
 
 pub(crate) fn is_chat_enabled() -> bool {
-    std::env::var("AI_GATEWAY_API_KEY").is_ok()
+    get_ai_api_key().is_some()
 }
 
 pub(super) fn chat_status_json() -> String {
     let enabled = is_chat_enabled();
     let mut obj = json!({ "enabled": enabled });
     if enabled {
-        if let Ok(model) = std::env::var("AI_GATEWAY_MODEL") {
-            obj["model"] = Value::String(model);
-        }
+        let provider = get_ai_provider();
+        obj["provider"] = Value::String(format!("{:?}", provider));
+        obj["model"] = Value::String(get_ai_model());
+        obj["baseUrl"] = Value::String(get_ai_base_url());
     }
     obj.to_string()
 }
@@ -34,17 +111,14 @@ pub(super) async fn handle_models_request(
     origin: Option<&str>,
 ) {
     let cors = cors_headers_for_origin(origin);
-    let gateway_url = std::env::var("AI_GATEWAY_URL")
-        .unwrap_or_else(|_| DEFAULT_AI_GATEWAY_URL.to_string())
-        .trim_end_matches('/')
-        .to_string();
-    let api_key = match std::env::var("AI_GATEWAY_API_KEY") {
-        Ok(k) => k,
-        Err(_) => {
+    let api_key = match get_ai_api_key() {
+        Some(k) => k,
+        None => {
             let body = r#"{"data":[]}"#;
             let resp = format!(
-                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n{cors}\r\n",
-                body.len()
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n{}\r\n",
+                body.len(),
+                cors
             );
             let _ = stream.write_all(resp.as_bytes()).await;
             let _ = stream.write_all(body.as_bytes()).await;
@@ -52,7 +126,8 @@ pub(super) async fn handle_models_request(
         }
     };
 
-    let url = format!("{}/v1/models", gateway_url);
+    let base_url = get_ai_base_url();
+    let url = format!("{}/models", base_url.trim_end_matches('/'));
     let client = http_client();
     let result = client
         .get(&url)
@@ -670,17 +745,15 @@ pub(super) async fn handle_chat_request(
     origin: Option<&str>,
 ) {
     let cors = cors_headers_for_origin(origin);
-    let gateway_url = std::env::var("AI_GATEWAY_URL")
-        .unwrap_or_else(|_| DEFAULT_AI_GATEWAY_URL.to_string())
-        .trim_end_matches('/')
-        .to_string();
-    let api_key = match std::env::var("AI_GATEWAY_API_KEY") {
-        Ok(k) => k,
-        Err(_) => {
-            let err = r#"{"error":"AI_GATEWAY_API_KEY not set. Set the AI_GATEWAY_API_KEY environment variable to enable AI chat."}"#;
+    let base_url = get_ai_base_url();
+    let api_key = match get_ai_api_key() {
+        Some(k) => k,
+        None => {
+            let err = r#"{"error":"AI_API_KEY not set. Set the AI_API_KEY environment variable to enable AI chat."}"#;
             let resp = format!(
-                "HTTP/1.1 500 Internal Server Error\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n{cors}\r\n",
-                err.len()
+                "HTTP/1.1 500 Internal Server Error\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n{}\r\n",
+                err.len(),
+                cors
             );
             let _ = stream.write_all(resp.as_bytes()).await;
             let _ = stream.write_all(err.as_bytes()).await;
@@ -688,8 +761,7 @@ pub(super) async fn handle_chat_request(
         }
     };
 
-    let default_model = std::env::var("AI_GATEWAY_MODEL")
-        .unwrap_or_else(|_| "anthropic/claude-sonnet-4.6".to_string());
+    let default_model = get_ai_model();
 
     let parsed: Value = match serde_json::from_str(body) {
         Ok(v) => v,
@@ -772,7 +844,7 @@ pub(super) async fn handle_chat_request(
     }
 
     let tools: Value = serde_json::from_str(CHAT_TOOLS).unwrap();
-    let url = format!("{}/v1/chat/completions", gateway_url);
+    let url = format!("{}/chat/completions", base_url.trim_end_matches('/'));
     let client = http_client();
 
     let total_chars = estimate_chars(&openai_messages);
@@ -807,7 +879,7 @@ pub(super) async fn handle_chat_request(
     }
 
     let headers = format!(
-        "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-cache\r\nConnection: keep-alive\r\nx-vercel-ai-ui-message-stream: v1\r\n{cors}\r\n"
+        "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-cache\r\nConnection: keep-alive\r\n{cors}\r\n"
     );
     if stream.write_all(headers.as_bytes()).await.is_err() {
         return;

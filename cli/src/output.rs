@@ -2689,12 +2689,12 @@ Usage:
 
 Sends natural language instructions to an AI model that translates them
 into agent-browser commands and executes them against the active session.
-Requires AI_GATEWAY_API_KEY to be set.
+Requires AI_API_KEY to be set.
 
 In interactive mode, type "quit", "exit", or "q" to leave the REPL.
 
 Chat Options:
-  --model <name>         AI model (or AI_GATEWAY_MODEL env, default: anthropic/claude-sonnet-4.6)
+  --model <name>         AI model (or AI_MODEL env, default varies by provider)
   -v, --verbose          Show tool commands and their raw output
   -q, --quiet            Show only the AI text response (hide tool calls)
 
@@ -2894,7 +2894,7 @@ Options:
   --confirm-interactive      Interactive confirmation prompts; auto-denies if stdin is not a TTY (or AGENT_BROWSER_CONFIRM_INTERACTIVE)
   --engine <name>            Browser engine: chrome (default), lightpanda (or AGENT_BROWSER_ENGINE)
   --no-auto-dialog           Disable automatic dismissal of alert/beforeunload dialogs (or AGENT_BROWSER_NO_AUTO_DIALOG)
-  --model <name>             AI model for chat (or AI_GATEWAY_MODEL env)
+  --model <name>             AI model for chat (or AI_MODEL env)
   -v, --verbose              Show tool commands and their raw output
   -q, --quiet                Show only AI text responses (hide tool calls)
   --config <path>            Use a custom config file (or AGENT_BROWSER_CONFIG env)
@@ -2960,9 +2960,10 @@ Environment:
   AGENT_BROWSER_SCREENSHOT_DIR   Default screenshot output directory
   AGENT_BROWSER_SCREENSHOT_QUALITY JPEG quality 0-100
   AGENT_BROWSER_SCREENSHOT_FORMAT Screenshot format: png, jpeg
-  AI_GATEWAY_URL                 Vercel AI Gateway base URL (default: https://ai-gateway.vercel.sh)
-  AI_GATEWAY_API_KEY             API key for the AI Gateway (enables chat command and dashboard AI chat)
-  AI_GATEWAY_MODEL               Default AI model (default: anthropic/claude-sonnet-4.6, or --model flag)
+  AI_PROVIDER                   AI provider: nvidia, openai, anthropic, siliconflow, openrouter, custom (default: nvidia)
+  AI_API_KEY                    API key for AI provider (or NVIDIA_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY)
+  AI_BASE_URL                   Custom AI API base URL (overrides provider default)
+  AI_MODEL                      Default AI model (default varies by provider)
 
 Install:
   npm install -g agent-browser           # npm

@@ -444,7 +444,7 @@ pub fn parse_flags(args: &[String]) -> Flags {
             .and_then(|s| s.parse::<u64>().ok()),
         no_auto_dialog: env_var_is_truthy("AGENT_BROWSER_NO_AUTO_DIALOG")
             || config.no_auto_dialog.unwrap_or(false),
-        model: env::var("AI_GATEWAY_MODEL").ok().or(config.model),
+        model: env::var("AI_MODEL").ok().or(config.model),
         verbose: false,
         quiet: false,
         cli_executable_path: false,
