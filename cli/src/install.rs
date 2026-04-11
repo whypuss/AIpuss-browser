@@ -15,6 +15,15 @@ pub fn get_browsers_dir() -> PathBuf {
 }
 
 pub fn find_installed_chrome() -> Option<PathBuf> {
+    // 1. Prefer ungoogled-chromium on macOS
+    #[cfg(target_os = "macos")]
+    {
+        let ungoogled = PathBuf::from("/Applications/Ungoogled Chromium.app/Contents/MacOS/Ungoogled Chromium");
+        if ungoogled.exists() {
+            return Some(ungoogled);
+        }
+    }
+
     let browsers_dir = get_browsers_dir();
     let debug = std::env::var("AGENT_BROWSER_DEBUG").is_ok();
 
