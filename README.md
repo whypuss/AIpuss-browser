@@ -133,6 +133,79 @@ aipuss-browser screenshot --annotate    # 標元素編號
 aipuss-browser eval 'document.title'
 ```
 
+## Skyvern Adapter（LLM 驅動的瀏覽器 Agent）
+
+`skyvern_adapter.rs` 實現了 Skyvern 相容的 REST API surface，讓 Skyvern 生態的 agent（SDK）可以直接對接 AIpuss 的 Rust/CDP 底層。
+
+### 核心概念：Protocol Bridge
+
+```
+Skyvern = Python (Playwright) + LLM loop → 協議
+AIpuss = Rust (CDP)             → 原生底層
+              ↑____________ Skyvern Adapter (橋接)
+```
+
+Adapter 把 Skyvern 的 LLM 驅動 workflow（observe → think → act → verify → repeat）翻譯成 AIpuss 的 CDP 命令，無需更換 agent 端代碼。
+
+### 支援的 SDK Action
+
+| SDK Action | 說明 |
+|------------|------|
+| `ai_click` | 按引用或意圖點擊元素 |
+| `ai_input_text` | 填入文字 |
+| `ai_select_option` | 選擇下拉選項 |
+| `ai_upload_file` | 上傳文件 |
+| `ai_act` | 自然語言動作（需完整 task loop） |
+| `extract` | 結構化資料提取 |
+| `validate` | 頁面驗證 |
+| `prompt` | LLM 提示並取回回應 |
+| `locate_element` | 元素定位 |
+
+### LLM Provider
+
+支援 OpenAI（GPT-4o）和 Anthropic（Claude）：
+
+```rust
+// OpenAI
+let provider = OpenAILLMProvider::new(api_key, "gpt-4o".to_string());
+
+// Anthropic
+let provider = AnthropicLLMProvider::new(api_key, "claude-3-5-sonnet".to_string());
+```
+
+### REST API 端點
+
+| 端點 | 方法 | 說明 |
+|------|------|------|
+| `/skyvern/tasks` | POST | 建立並執行 task |
+| `/skyvern/tasks/{id}` | GET | 查詢 task 狀態 |
+| `/skyvern/run_action` | POST | 執行單一 SDK action |
+
+### Task 建立與執行
+
+```json
+// POST /skyvern/tasks
+{
+  "url": "https://github.com/search?q=rust+web+framework",
+  "navigation_goal": "搜尋 Rust Web 框架，找到 stars 最多的前三個 repo",
+  "complete_criterion": "頁面上顯示了至少 3 個 repo 條目，且每個都有 star 數量",
+  "max_steps": 20
+}
+```
+
+### Task 狀態
+
+`created` → `pending` → `running` → `completed` / `failed` / `max_steps_reached`
+
+每個 step 記錄 action_history（action_type、reasoning、confidence、result）。
+
+### 與現有模組的整合
+
+- `AgentSnapshotOutput`（`agent_snapshot.rs`）→ LLM 的 accessible elements
+- `AgentStateTracker`（`agent_state.rs`）→ action_history 和 StateDiff
+- `PrefetchCache`（`prefetch.rs`）→ background 預取
+- CDP 命令（`actions.rs`）→ act 層的實際執行
+
 ## 引用生命周期
 
 `@e1`、`@e2` 等引用在**頁面變化後失效**（點擊連結、表單送出、動態載入）。
