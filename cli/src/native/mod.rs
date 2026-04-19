@@ -50,6 +50,8 @@ pub mod agent_state;
 pub mod opencli;
 #[allow(dead_code)]
 pub mod prefetch;
+#[allow(dead_code)]
+pub mod skyvern_adapter;
 
 #[cfg(test)]
 mod e2e_tests;

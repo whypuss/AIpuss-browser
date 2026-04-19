@@ -103,6 +103,7 @@ All new modules are additive — they extend, not replace, existing API surfaces
 | NL commands | `cli/src/native/agent_commands.rs` | `CommandRegistry` — 10 built-in commands (github_search_repos, find_best_repo, fill_form_fields, etc.) |
 | Visual anchoring | `cli/src/native/screenshot.rs` | `capture_element_crops()` + `ElementCropCapture` — per-element crop thumbnails via CDP clip viewport |
 | Fingerprint | `cli/src/native/cdp/chrome.rs` | `LaunchOptions { fingerprint_randomizer, timezone_override, accept_language_override }` |
+| Skyvern adapter | `cli/src/native/skyvern_adapter.rs` | Skyvern-compatible protocol bridge — `SkyvernTask`, `TaskRegistry`, `LLMProvider` trait, `SkyvernSDKAction` (ai_click/ai_input_text/extract/validate/prompt), observe-think-act-verify loop, OpenAI + Anthropic providers |
 
 All new modules are registered in `cli/src/native/mod.rs`. Key integration points:
 
