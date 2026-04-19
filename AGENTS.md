@@ -91,6 +91,34 @@ Match the existing style in that file.
 
 This is a Rust codebase. The browser automation daemon lives in `cli/src/native/` (daemon, actions, browser, CDP client, snapshot, state). The `--engine` flag selects Chrome vs Lightpanda. The `install` command downloads Chrome from Chrome for Testing directly.
 
+### New Agent-Native Modules (2026-Q2)
+
+All new modules are additive — they extend, not replace, existing API surfaces.
+
+| Module | File | Purpose |
+|--------|------|---------|
+| Semantic snapshot | `cli/src/native/agent_snapshot.rs` | `take_agent_snapshot()` — priority scoring, ad filtering, noise assessment, action hints |
+| State tracking | `cli/src/native/agent_state.rs` | `AgentStateTracker` + `StateDiff` + `SelfCorrection` — step recording, LCS tree diff, self-correction hint generation |
+| Pre-fetch cache | `cli/src/native/prefetch.rs` | `PrefetchCache` — background link scan, HTTP pre-fetch, DNS pre-connect, LRU eviction |
+| NL commands | `cli/src/native/agent_commands.rs` | `CommandRegistry` — 10 built-in commands (github_search_repos, find_best_repo, fill_form_fields, etc.) |
+| Visual anchoring | `cli/src/native/screenshot.rs` | `capture_element_crops()` + `ElementCropCapture` — per-element crop thumbnails via CDP clip viewport |
+| Fingerprint | `cli/src/native/cdp/chrome.rs` | `LaunchOptions { fingerprint_randomizer, timezone_override, accept_language_override }` |
+
+All new modules are registered in `cli/src/native/mod.rs`. Key integration points:
+
+- `ScreenshotResult.element_crops` is populated by `capture_element_crops()` when `ScreenshotOptions.element_crop` is `Some`
+- `AgentStateTracker` can be embedded in the `Browser` struct to auto-record every action
+- `PrefetchCache::scan_links()` parses the DOM tree for href/src, skips anchors/mailto/tel/javascript/data URI
+- `CommandRegistry::execute()` accepts `{command: String, args: Value}` and returns `CommandResult`
+- Fingerprint flags are applied in `build_chrome_args()` when `fingerprint_randomizer: true`
+
+#### When adding a new native module
+
+1. Create `cli/src/native/agent_your_module.rs` with full doc comments
+2. Add `#[allow(dead_code)] pub mod agent_your_module;` to `cli/src/native/mod.rs`
+3. If the module exposes a public async function, document the error handling strategy
+4. Do not modify existing files unless the new capability requires it — additive is the goal
+
 ## Testing
 
 ### Unit Tests

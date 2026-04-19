@@ -44,11 +44,31 @@ pub struct ScreenshotAnnotation {
     pub box_: AnnotationBox,
 }
 
+/// A cropped screenshot around a specific element.
+#[derive(Debug, Clone, Serialize)]
+pub struct ElementCropCapture {
+    /// The ref ID of the element this crop is centered on.
+    pub ref_id: String,
+    /// The role of the element.
+    pub role: String,
+    /// The name of the element.
+    pub name: Option<String>,
+    /// Base64-encoded cropped PNG image.
+    pub base64: String,
+    /// Original element bounding box (x, y, width, height).
+    pub original_bounds: (f64, f64, f64, f64),
+    /// Captured region bounds.
+    pub crop_bounds: (i64, i64, u32, u32),
+}
+
 #[derive(Debug, Clone)]
 pub struct ScreenshotResult {
     pub path: String,
     pub base64: String,
     pub annotations: Vec<ScreenshotAnnotation>,
+    /// Per-element cropped screenshots for visual confirmation.
+    /// Only populated when `element_crop` is set in options.
+    pub element_crops: Vec<ElementCropCapture>,
 }
 
 #[derive(Debug, Clone)]
@@ -60,6 +80,10 @@ pub struct ScreenshotOptions {
     pub quality: Option<i32>,
     pub annotate: bool,
     pub output_dir: Option<String>,
+    /// Capture a cropped region around each interactive element for visual confirmation.
+    /// When set to Some((width, height)), each element's bounding box will be expanded
+    /// by (width/2, height/2) and captured as a small visual thumbnail.
+    pub element_crop: Option<(u32, u32)>,
 }
 
 impl Default for ScreenshotOptions {
@@ -72,6 +96,7 @@ impl Default for ScreenshotOptions {
             quality: None,
             annotate: false,
             output_dir: None,
+            element_crop: None,
         }
     }
 }
@@ -161,10 +186,20 @@ pub async fn take_screenshot(
         options.output_dir.as_deref(),
     )?;
 
+    // Capture per-element crops for visual anchoring when element_crop is set.
+    let element_crops = if let Some(crop_size) = options.element_crop {
+        capture_element_crops(client, session_id, ref_map, crop_size, 20)
+            .await
+            .unwrap_or_default()
+    } else {
+        Vec::new()
+    };
+
     Ok(ScreenshotResult {
         path,
         base64,
         annotations,
+        element_crops,
     })
 }
 
@@ -595,6 +630,142 @@ fn get_screenshot_dir() -> PathBuf {
             .join("agent-browser")
             .join("screenshots")
     }
+}
+
+/// Capture cropped screenshots around each interactive element.
+///
+/// This is used for **visual anchoring** — the LLM can see a small thumbnail
+/// of each element to confirm it is clicking the right thing.
+///
+/// `crop_size` is (width, height) in pixels for each crop.
+/// Each element's bounding box is expanded by (width/2, height/2) on each side.
+pub async fn capture_element_crops(
+    client: &CdpClient,
+    session_id: &str,
+    ref_map: &RefMap,
+    crop_size: (u32, u32),
+    max_crops: usize,
+) -> Result<Vec<ElementCropCapture>, String> {
+    use super::cdp::types::{CaptureScreenshotParams, EvaluateParams, EvaluateResult};
+
+    let entries: Vec<_> = ref_map.entries_sorted();
+    let interactive: Vec<_> = entries
+        .iter()
+        .filter(|(_, e)| {
+            matches!(
+                e.role.as_str(),
+                "button" | "link" | "textbox" | "checkbox" | "radio"
+                    | "combobox" | "menuitem" | "tab" | "option"
+            )
+        })
+        .take(max_crops)
+        .collect();
+
+    let mut crops = Vec::new();
+
+    for (ref_id, entry) in interactive {
+        // Get element bounding box via JS
+        let js = format!(
+            r#"(function() {{
+                var els = document.querySelectorAll('[data-ref-id="{}"]');
+                if (els.length === 0) {{
+                    // Try by aria-label or title
+                    els = document.querySelectorAll('[aria-label="{}"], [title="{}"]');
+                }}
+                for (var i = 0; i < els.length; i++) {{
+                    var r = els[i].getBoundingClientRect();
+                    if (r.width > 0 && r.height > 0) {{
+                        return {{ x: r.left, y: r.top, width: r.width, height: r.height, found: true }};
+                    }}
+                }}
+                return {{ found: false }};
+            }})()"#,
+            ref_id,
+            entry.name.replace('"', "'"),
+            entry.name.replace('"', "'")
+        );
+
+        let result: EvaluateResult = client
+            .send_command_typed(
+                "Runtime.evaluate",
+                &EvaluateParams {
+                    expression: js,
+                    return_by_value: Some(true),
+                    await_promise: Some(false),
+                },
+                Some(session_id),
+            )
+            .await
+            .map_err(|e| e.to_string())?;
+
+        let bounds: serde_json::Value = result
+            .result
+            .value
+            .and_then(|v| serde_json::from_value(v).ok())
+            .unwrap_or_default();
+
+        if !bounds.get("found").and_then(|v| v.as_bool()).unwrap_or(false) {
+            continue;
+        }
+
+        let x = bounds.get("x").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let y = bounds.get("y").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let w = bounds.get("width").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let h = bounds.get("height").and_then(|v| v.as_f64()).unwrap_or(0.0);
+
+        if w <= 0.0 || h <= 0.0 {
+            continue;
+        }
+
+        // Expand bounding box by half the crop size on each side
+        let half_w = crop_size.0 as f64 / 2.0;
+        let half_h = crop_size.1 as f64 / 2.0;
+
+        let crop_x = (x - half_w).max(0.0) as i64;
+        let crop_y = (y - half_h).max(0.0) as i64;
+        let crop_w = (w + crop_size.0 as f64).min(4096.0) as u32;
+        let crop_h = (h + crop_size.1 as f64).min(4096.0) as u32;
+
+        // Capture the cropped screenshot using CDP's captureScreenshot with clip
+        let params = CaptureScreenshotParams {
+            format: Some("png".to_string()),
+            quality: None,
+            clip: Some(super::cdp::types::Viewport {
+                x: crop_x as f64,
+                y: crop_y as f64,
+                width: crop_w as f64,
+                height: crop_h as f64,
+                scale: 2.0, // 2x for retina quality
+            }),
+            from_surface: Some(true),
+            capture_beyond_viewport: Some(false),
+        };
+
+        let cap: super::cdp::types::CaptureScreenshotResult = client
+            .send_command_typed("Page.captureScreenshot", &params, Some(session_id))
+            .await
+            .map_err(|e| e.to_string())?;
+
+        let b64 = cap
+            .result
+            .data
+            .ok_or("captureScreenshot returned no data")?;
+
+        crops.push(ElementCropCapture {
+            ref_id: ref_id.clone(),
+            role: entry.role.clone(),
+            name: if entry.name.is_empty() {
+                None
+            } else {
+                Some(entry.name.clone())
+            },
+            base64: b64,
+            original_bounds: (x, y, w, h),
+            crop_bounds: (crop_x, crop_y, crop_w, crop_h),
+        });
+    }
+
+    Ok(crops)
 }
 
 #[cfg(test)]

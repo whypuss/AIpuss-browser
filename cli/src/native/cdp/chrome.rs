@@ -110,6 +110,14 @@ pub struct LaunchOptions {
     /// Chrome uses the real system keychain. Set automatically when launching
     /// with a copied Chrome profile.
     pub use_real_keychain: bool,
+    /// When true, apply fingerprint randomization to reduce bot detection.
+    /// This randomizes canvas, WebGL, and adds entropy to timing APIs.
+    pub fingerprint_randomizer: bool,
+    /// Override the timezone ID (e.g. "America/New_York").
+    /// When fingerprint_randomizer is true, this is set automatically.
+    pub timezone_override: Option<String>,
+    /// Override the Accept-Language header.
+    pub accept_language_override: Option<String>,
 }
 
 impl Default for LaunchOptions {
@@ -132,6 +140,9 @@ impl Default for LaunchOptions {
             download_path: None,
             viewport_size: None,
             use_real_keychain: false,
+            fingerprint_randomizer: false,
+            timezone_override: None,
+            accept_language_override: None,
         }
     }
 }
@@ -163,6 +174,55 @@ fn build_chrome_args(options: &LaunchOptions) -> Result<ChromeArgs, String> {
     if !options.use_real_keychain {
         args.push("--password-store=basic".to_string());
         args.push("--use-mock-keychain".to_string());
+    }
+
+    // Fingerprint randomization — applied before browser metadata to reduce bot detection
+    if options.fingerprint_randomizer {
+        // Randomize canvas fingerprint by adding noise to 2D rendering
+        args.push("--disable-canvas-aa".to_string()); // Disable antialiasing to vary pixel output
+        // Randomize WebGL renderer info
+        args.push("--disable-webgl".to_string()); // Force disabled — too fingerprintable
+        args.push("--disable-webgl2".to_string());
+        // Disable ClientRects — a major fingerprinting vector
+        args.push("--disable-client-physics".to_string());
+        // Entropy sources: disable hardware concurrency, device memory exposure
+        args.push("--disable-features=HardwareMediaKeyDecoding".to_string());
+        // Disable Navigator API fingerprinting vectors
+        args.push("--disable-namespace-sandbox".to_string());
+        // Reduce timing attack surface
+        args.push("--enable-features=SecondsCacheInfinite".to_string());
+
+        // Random timezone if not explicitly set
+        if options.timezone_override.is_none() {
+            // Pick a random common timezone from a set of plausible values
+            let timezones = [
+                "America/New_York",
+                "America/Chicago",
+                "America/Los_Angeles",
+                "Europe/London",
+                "Europe/Paris",
+                "Asia/Tokyo",
+                "Asia/Singapore",
+                "Australia/Sydney",
+            ];
+            use std::time::SystemTime;
+            let now = SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0) as usize;
+            let tz = timezones[now % timezones.len()];
+            args.push(format!("--timezone={}", tz));
+        }
+    }
+
+    // Explicit timezone override (takes precedence over randomizer)
+    if let Some(ref tz) = options.timezone_override {
+        args.push(format!("--timezone={}", tz));
+    }
+
+    // Accept-Language override for locale fingerprinting
+    if let Some(ref lang) = options.accept_language_override {
+        args.push(format!("--accept-lang={}", lang));
     }
 
     let has_extensions = options

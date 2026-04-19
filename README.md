@@ -1,257 +1,157 @@
 # AIpuss-browser
 
-Fork of [agent-browser](https://github.com/jackwener/opencli) / [opencli](https://github.com/jackwener/opencli) — AI-first browser automation CLI for AI agents. Powered by Rust + CDP.
+AI-first 瀏覽器自動化 CLI，基於 Rust + CDP。
 
-This fork adds:
-- **Daemon mode** with WebSocket streaming for Hermes agent integration
-- **macOS launchd watchdog** for 24/7 background operation
-- **Dashboard UI** (Activity / Console / Network / Storage tabs, no Chat)
+這是 [opencli](https://github.com/jackwener/opencli) 的分支，專為 Hermes Agent 整合優化。
 
----
+## 核心功能
 
-## Features
+- **Daemon 模式** — 啟動一次，CLI 指令或 WebSocket 持續控制
+- **無頭 Chromium** — 自帶 Chrome，不需要系統已安裝
+- **無障礙樹快照** — `@e1`、`@e2` 引用，精確定位元素
+- **語義定位器** — 按 role、text、label、placeholder、ARIA 查找
+- **瀏覽器設定檔** — 復用已登入的 Chrome 狀態
+- **Session 隔離** — 多個獨立瀏覽器實例
+- **網路攔截** — Mock、封鎖、錄製 HTTP 請求
+- **狀態持久化** — 自動儲存/還原 cookies 和 localStorage
+- **Auth Vault** — 加密儲存憑證
+- **截圖差異比對** — 回歸測試用
 
-- **Daemon mode** — Start once, control browser via CLI commands or WebSocket indefinitely
-- **Headless Chromium** — Ships its own Chrome, no system Chrome required
-- **Accessibility tree snapshots** — `@e1`, `@e2` refs for precise AI targeting
-- **Semantic locators** — Find by role, text, label, placeholder, ARIA
-- **Browser profiles** — Reuse existing Chrome login state with `--profile`
-- **Session isolation** — Multiple independent browser instances
-- **Network interception** — Mock, block, or record HTTP requests
-- **State persistence** — Auto-save/restore cookies and localStorage
-- **Auth vault** — Encrypted credential storage
-- **Diff tools** — Snapshot and screenshot diffing for regression testing
-- **Dashboard** — Web UI at `http://localhost:<port>` with Activity / Console / Network / Storage tabs
-
----
-
-## Installation
-
-### From Source (Recommended for this fork)
+## 安裝
 
 ```bash
-git clone https://github.com/whypuss/AIpuss-browser
+git clone https://github.com/whypuss/AIpuss-browser.git
 cd AIpuss-browser
 pnpm install
-pnpm build          # Build Next.js dashboard
-pnpm build:native   # Build Rust binary (requires Rust: https://rustup.rs)
-pnpm link --global  # Link as `aipuss-browser` globally
+pnpm build          # 建 Next.js dashboard
+pnpm build:native   # 建 Rust binary（需先裝 Rust: rustup.rs）
+pnpm link --global  # 連結為全域指令 aipuss-browser
 ```
 
-### Via npm
+## 快速開始
 
 ```bash
-npm install -g agent-browser
-agent-browser install
-```
-
-### Via Cargo
-
-```bash
-cargo install agent-browser
-agent-browser install
-```
-
-### Via Homebrew
-
-```bash
-brew install agent-browser
-agent-browser install
-```
-
----
-
-## Quick Start
-
-```bash
-# Open a page
+# 開啟頁面
 aipuss-browser open example.com
 
-# Get accessibility tree
-aipuss-browser snapshot
+# 取得無障礙樹（互動元素引用）
+aipuss-browser snapshot -i
 
-# Click element by ref
+# 按引用點擊 / 填寫
 aipuss-browser click @e2
-
-# Fill form
 aipuss-browser fill @e3 "test@example.com"
 aipuss-browser press Enter
 
-# Screenshot
+# 截圖
 aipuss-browser screenshot
 
-# Close
+# 關閉
 aipuss-browser close
 ```
 
----
+## Daemon 模式（推薦給 AI Agent 用）
 
-## Daemon Mode (Recommended for AI Agents)
-
-Start the browser once, keep it running. All subsequent commands reuse the same browser instance.
-
-### Start Daemon
+啟動一次，後續所有指令復用同一個瀏覽器實例。
 
 ```bash
+# 啟動 daemon
 aipuss-browser stream enable
-```
+# 輸出：Stream enabled on port 62097
 
-This outputs the port, e.g.:
-```
-Stream enabled on port 62097
-Socket: ~/.agent-browser/default.sock
-```
-
-The port is also saved to `~/.agent-browser/default.stream`.
-
-### Using the Daemon
-
-Every CLI command automatically connects to the running daemon:
-
-```bash
+#之後所有指令自動連到 daemon
 aipuss-browser open github.com
-aipuss-browser snapshot
+aipuss-browser snapshot -i
 aipuss-browser click @e5
 aipuss-browser close
-```
 
-### Stop Daemon
-
-```bash
+# 停止 daemon
 aipuss-browser stream disable
 ```
 
-### Key Daemon Files
+## Session 管理
 
-| File | Purpose |
-|------|---------|
-| `~/.agent-browser/default.sock` | Unix socket for CLI commands |
-| `~/.agent-browser/default.stream` | Port number for WebSocket/dashboard |
-
----
-
-## Dashboard
-
-When daemon is running, open `http://localhost:<port>` to see the dashboard.
-
-Dashboard tabs:
-- **Activity** — Live event stream
-- **Console** — JavaScript console logs and errors
-- **Network** — HTTP request/response inspector
-- **Storage** — Cookies and web storage viewer
-
-The Chat tab has been removed in this fork.
-
----
-
-## Hermes Agent Integration
-
-This fork is designed for use with the Hermes agent framework.
-
-### Hermes Browser Tool
-
-The Hermes `browser_tool.py` uses AIpuss-browser for all browser automation. With the daemon running, Hermes can:
-
-- Navigate to URLs
-- Take snapshots and screenshots
-- Click, fill, scroll, and interact with pages
-- Extract data from pages
-
-### Running as a Service (macOS)
-
-For 24/7 operation with automatic restart on crash:
+### 自動儲存登入狀態（推薦）
 
 ```bash
-# Install watchdog + launchd service
-# (watchdog script at ~/.hermes/scripts/aipuss-watchdog.sh)
-# launchd plist at ~/Library/LaunchAgents/com.hermes.aipuss-watchdog.plist)
+# 第一次：開登入頁，登入後關閉，狀態自動保存
+aipuss-browser --session-name myapp open https://app.example.com/login
+# 手動完成登入
+aipuss-browser close
 
-# Load the service
-launchctl load ~/Library/LaunchAgents/com.hermes.aipuss-watchdog.plist
-
-# Check status
-tail -f /tmp/aipuss-watchdog.log
+# 之後直接還原登入狀態
+aipuss-browser --session-name myapp open https://app.example.com/dashboard
 ```
 
-The watchdog checks every 10 seconds and restarts the daemon if it dies.
-
----
-
-## Browser Profiles
-
-### Reuse Existing Chrome Login
+### 復用已登入的 Chrome
 
 ```bash
-# List available profiles
-aipuss-browser profiles
-
-# Use a profile
 aipuss-browser --profile Default open github.com
 ```
 
-### Persistent Profile Directory
+### Auth Vault
 
 ```bash
-# Use a dedicated profile directory
-aipuss-browser --profile ~/.myapp-profile open myapp.com
+# 保存密碼
+echo "$PASSWORD" | aipuss-browser auth save myapp \
+  --url https://app.example.com/login \
+  --username me@example.com \
+  --password-stdin
+
+# 之後自動登入
+aipuss-browser auth login myapp
 ```
 
-### Session-based Persistence
+## 常用指令
 
 ```bash
-# Auto-save/restore cookies + localStorage
-aipuss-browser --session-name myapp open myapp.com
-# State is automatically restored on next run with same --session-name
+# 導航
+aipuss-browser open <url>
+aipuss-browser close
+
+# 快照
+aipuss-browser snapshot -i              # 互動元素引用
+aipuss-browser snapshot -i --urls       # 含連結 URL
+
+# 操作
+aipuss-browser click @e1
+aipuss-browser fill @e2 "文字"
+aipuss-browser type @e2 "打字不放"
+aipuss-browser select @e1 "選項"
+aipuss-browser scroll down 500
+
+# 等待
+aipuss-browser wait 2000               # 等毫秒
+aipuss-browser wait @e1               # 等元素出現
+aipuss-browser wait --url "**/done"   # 等 URL 符合
+
+# 截圖
+aipuss-browser screenshot
+aipuss-browser screenshot --full
+aipuss-browser screenshot --annotate    # 標元素編號
+
+# JS 執行
+aipuss-browser eval 'document.title'
 ```
 
----
+## 引用生命周期
 
-## Network Interception
+`@e1`、`@e2` 等引用在**頁面變化後失效**（點擊連結、表單送出、動態載入）。
+
+每次頁面變化後必須重新 snapshot。
+
+## Hermes Agent 整合
+
+Daemon 啟動後，Hermes 的 `browser_tool.py` 自動透過 CLI 或 WebSocket 控制瀏覽器，支援導航、快照、截圖、點擊、填寫、滾動、資料抓取。
+
+### macOS 24/7 後台運行
 
 ```bash
-# Block requests
-aipuss-browser network route "**/ads/**" --abort
+# 安裝 watchdog + launchd service
+launchctl load ~/Library/LaunchAgents/com.hermes.aipuss-watchdog.plist
 
-# Mock API response
-aipuss-browser network route "**/api/user" --body '{"name":"Test"}'
-
-# Record HAR
-aipuss-browser network har start
-# ... do things ...
-aipuss-browser network har stop output.har
+# 查看狀態
+tail -f /tmp/aipuss-watchdog.log
 ```
-
----
-
-## Environment Variables
-
-| Variable | Purpose | Default |
-|----------|---------|---------|
-| `AGENT_BROWSER_SESSION` | Session name | `default` |
-| `AGENT_BROWSER_SESSION_NAME` | Auto-save/restore state | — |
-| `AGENT_BROWSER_PROFILE` | Chrome profile | — |
-| `AGENT_BROWSER_HEADED` | Show browser window | `false` |
-| `AGENT_BROWSER_STREAM_PORT` | WebSocket port | OS-assigned |
-| `AI_MODEL` | AI model for chat | provider default |
-| `AI_PROVIDER` | AI provider (nvidia, openai, etc.) | `nvidia` |
-| `AI_API_KEY` | API key for AI | — |
-
----
-
-## Project Structure
-
-```
-AIpuss-browser/
-├── cli/                    # Rust binary source
-│   ├── src/native/         # Core browser automation
-│   ├── src/commands.rs     # CLI command definitions
-│   └── src/native/stream/  # Daemon + WebSocket + Dashboard
-├── packages/
-│   └── dashboard/          # Next.js Web UI (Activity/Console/Network/Storage)
-└── docs/                   # Full documentation
-```
-
----
 
 ## License
 

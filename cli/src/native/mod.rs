@@ -41,7 +41,15 @@ pub mod tracing;
 #[allow(dead_code)]
 pub mod webdriver;
 #[allow(dead_code)]
+pub mod agent_commands;
+#[allow(dead_code)]
+pub mod agent_snapshot;
+#[allow(dead_code)]
+pub mod agent_state;
+#[allow(dead_code)]
 pub mod opencli;
+#[allow(dead_code)]
+pub mod prefetch;
 
 #[cfg(test)]
 mod e2e_tests;
