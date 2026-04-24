@@ -89,6 +89,8 @@ pub struct Config {
     pub idle_timeout: Option<String>,
     pub no_auto_dialog: Option<bool>,
     pub model: Option<String>,
+    pub cdp_port: Option<u16>,
+    pub enable_mcp: Option<bool>,
 }
 
 impl Config {
@@ -136,6 +138,8 @@ impl Config {
             idle_timeout: other.idle_timeout.or(self.idle_timeout),
             no_auto_dialog: other.no_auto_dialog.or(self.no_auto_dialog),
             model: other.model.or(self.model),
+            cdp_port: other.cdp_port.or(self.cdp_port),
+            enable_mcp: other.enable_mcp.or(self.enable_mcp),
         }
     }
 }
@@ -222,6 +226,7 @@ fn extract_config_path(args: &[String]) -> Option<Option<String>> {
         "--screenshot-format",
         "--idle-timeout",
         "--model",
+        "--cdp-port",
     ];
     let mut i = 0;
     while i < args.len() {
@@ -308,6 +313,8 @@ pub struct Flags {
     pub model: Option<String>,
     pub verbose: bool,
     pub quiet: bool,
+    pub cdp_port: Option<u16>,
+    pub enable_mcp: bool,
 
     // Track which launch-time options were explicitly passed via CLI
     // (as opposed to being set only via environment variables)
@@ -447,6 +454,12 @@ pub fn parse_flags(args: &[String]) -> Flags {
         model: env::var("AI_MODEL").ok().or(config.model),
         verbose: false,
         quiet: false,
+        cdp_port: env::var("AGENT_BROWSER_CDP_PORT")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .or(config.cdp_port),
+        enable_mcp: env_var_is_truthy("AGENT_BROWSER_ENABLE_MCP")
+            || config.enable_mcp.unwrap_or(false),
         cli_executable_path: false,
         cli_extensions: false,
         cli_profile: false,
@@ -731,6 +744,25 @@ pub fn parse_flags(args: &[String]) -> Flags {
             "--model" => {
                 if let Some(s) = args.get(i + 1) {
                     flags.model = Some(s.clone());
+                    i += 1;
+                }
+            }
+            "--cdp-port" => {
+                if let Some(s) = args.get(i + 1) {
+                    match s.parse::<u16>() {
+                        Ok(port) => flags.cdp_port = Some(port),
+                        Err(_) => eprintln!(
+                            "{} Invalid --cdp-port: must be a number between 1 and 65535",
+                            color::warning_indicator()
+                        ),
+                    }
+                    i += 1;
+                }
+            }
+            "--enable-mcp" => {
+                let (val, consumed) = parse_bool_arg(args, i);
+                flags.enable_mcp = val;
+                if consumed {
                     i += 1;
                 }
             }

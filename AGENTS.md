@@ -104,6 +104,7 @@ All new modules are additive — they extend, not replace, existing API surfaces
 | Visual anchoring | `cli/src/native/screenshot.rs` | `capture_element_crops()` + `ElementCropCapture` — per-element crop thumbnails via CDP clip viewport |
 | Fingerprint | `cli/src/native/cdp/chrome.rs` | `LaunchOptions { fingerprint_randomizer, timezone_override, accept_language_override }` |
 | Skyvern adapter | `cli/src/native/skyvern_adapter.rs` | Skyvern-compatible protocol bridge — `SkyvernTask`, `TaskRegistry`, `LLMProvider` trait, `SkyvernSDKAction` (ai_click/ai_input_text/extract/validate/prompt), observe-think-act-verify loop, OpenAI + Anthropic providers |
+| MCP server | `cli/src/native/mcp.rs` | Native MCP (Model Context Protocol) stdio server — 20 browser tools (navigate, snapshot, click, type, screenshot, etc.), JSON-RPC 2.0 over stdin/stdout, auto-registered with daemon when `--enable-mcp` is set |
 
 All new modules are registered in `cli/src/native/mod.rs`. Key integration points:
 
@@ -112,6 +113,8 @@ All new modules are registered in `cli/src/native/mod.rs`. Key integration point
 - `PrefetchCache::scan_links()` parses the DOM tree for href/src, skips anchors/mailto/tel/javascript/data URI
 - `CommandRegistry::execute()` accepts `{command: String, args: Value}` and returns `CommandResult`
 - Fingerprint flags are applied in `build_chrome_args()` when `fingerprint_randomizer: true`
+- MCP stdio server spawns in a dedicated `std::thread` when `AGENT_BROWSER_ENABLE_MCP=1`, creating its own `tokio::runtime::Builder::new_current_thread()`. Commands flow back to the daemon via a oneshot channel to avoid `block_on` deadlock
+- `run_daemon(session, enable_mcp)` accepts the flag; when true, spawns the MCP thread and registers a tool handler in `run_socket_server` that dispatches to `execute_command()`
 
 #### When adding a new native module
 

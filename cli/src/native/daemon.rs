@@ -1,4 +1,5 @@
-use serde_json::Value;
+use serde::Deserialize;
+use serde_json::{json, Value};
 use std::env;
 use std::fs;
 use std::io::Write;
@@ -13,14 +14,48 @@ use tokio::sync::{mpsc, Notify, RwLock};
 
 use super::actions::{execute_command, DaemonState};
 use super::cdp::client::CdpClient;
+use super::mcp::{self, McpState};
 use super::state;
 use super::stream::StreamServer;
 
-pub async fn run_daemon(session: &str) {
+/// Type alias to avoid nested generic parsing ambiguity in Rust 2015 edition:
+/// Arc<Mutex<Option<Box<dyn Fn(...) + Send + Sync + 'static>>>>
+type McpToolHandler = std::sync::Arc<
+    tokio::sync::Mutex<
+        Option<Box<dyn Fn(String, Value) -> Result<Value, String> + Send + Sync + 'static>>,
+    >,
+>;
+
+pub async fn run_daemon(session: &str, enable_mcp: bool) {
     let socket_dir = get_daemon_socket_dir();
     if !socket_dir.exists() {
         let _ = fs::create_dir_all(&socket_dir);
     }
+
+    // When --enable-mcp is set, create the MCP handler Arc and spawn the stdio server
+    // in a background thread before the socket server starts.
+    let mcp_tool_handler: Option<McpToolHandler> = if enable_mcp {
+        let handler: McpToolHandler =
+            std::sync::Arc::new(tokio::sync::Mutex::new(None));
+        let handler_for_thread = handler.clone();
+
+        // Spawn the MCP stdio server thread. It creates its own tokio runtime.
+        let cdp_port = env::var("AGENT_BROWSER_CDP_PORT")
+            .and_then(|s| s.parse::<u16>().ok())
+            .unwrap_or(9222);
+        std::thread::spawn(move || {
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("MCP server: failed to create tokio runtime");
+            let state = mcp::McpState::new(cdp_port, rt.handle().clone());
+            mcp::run_stdio_server_with_handler(state, handler_for_thread, rt);
+        });
+
+        Some(handler)
+    } else {
+        None
+    };
 
     // When debug mode is on, redirect stderr to a log file so daemon
     // output can be inspected (the daemon normally has stderr piped to its
@@ -125,6 +160,7 @@ pub async fn run_daemon(session: &str) {
         stream_client,
         stream_server_instance,
         idle_timeout_ms,
+        mcp_tool_handler,
     )
     .await;
 
@@ -156,6 +192,7 @@ async fn run_socket_server(
     stream_client: Option<Arc<RwLock<Option<Arc<CdpClient>>>>>,
     stream_server: Option<Arc<StreamServer>>,
     idle_timeout_ms: Option<u64>,
+    mcp_tool_handler: Option<McpToolHandler>,
 ) -> Result<(), String> {
     use tokio::net::UnixListener;
 
@@ -172,6 +209,47 @@ async fn run_socket_server(
     let state: std::sync::Arc<tokio::sync::Mutex<DaemonState>> = std::sync::Arc::new(
         tokio::sync::Mutex::new(DaemonState::new_with_stream(stream_client, stream_server)),
     );
+
+    // Register the MCP tool handler so it can dispatch browser commands.
+    if let Some(ref handler_arc) = mcp_tool_handler {
+        let state_for_handler = state.clone();
+        // Channel: (tool_name, arguments, response_sender) — lets the sync handler
+        // forward work to the async run_socket_server loop without needing block_on.
+        let (tx, mut rx) = mpsc::channel::<(String, Value, tokio::sync::oneshot::Sender<Result<Value, String>>)>(64);
+
+        // Spawn a dedicated async task to handle MCP commands.
+        // This task lives inside the tokio runtime, so it CAN use `.await`.
+        tokio::spawn(async move {
+            while let Some((tool_name, arguments, reply_tx)) = rx.recv().await {
+                let id = format!(
+                    "mcp-{}",
+                    std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map(|d| d.as_nanos())
+                        .unwrap_or(0)
+                );
+                let cmd = json!({
+                    "id": id,
+                    "action": tool_name,
+                    "params": arguments,
+                });
+                let mut guard = state_for_handler.lock().await;
+                let result = execute_command(&cmd, &mut guard).await;
+                let _ = reply_tx.send(Ok(result));
+            }
+        });
+
+        let handler = Box::new(move |tool_name: String, arguments: Value| -> Result<Value, String> {
+            let (reply_tx, reply_rx) = tokio::sync::oneshot::channel();
+            // Try to send without blocking the tokio runtime
+            tx.try_send((tool_name, arguments, reply_tx))
+                .map_err(|_| "MCP command queue full — daemon overloaded".to_string())?;
+            reply_rx.blocking_recv()
+                .map_err(|e| format!("MCP handler recv error: {}", e))?
+        });
+        let mut guard = handler_arc.lock().unwrap();
+        *guard = Some(handler);
+    }
 
     let (reset_tx, mut reset_rx) = mpsc::channel::<()>(64);
     let reset_tx = idle_timeout_ms.map(|_| Arc::new(reset_tx));

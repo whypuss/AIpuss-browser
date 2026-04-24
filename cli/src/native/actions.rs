@@ -187,6 +187,10 @@ fn launch_hash(opts: &LaunchOptions) -> u64 {
     opts.proxy_password.hash(&mut h);
     opts.user_agent.hash(&mut h);
     opts.allow_file_access.hash(&mut h);
+    opts.cdp_port.hash(&mut h);
+    opts.fingerprint_randomizer.hash(&mut h);
+    opts.timezone_override.hash(&mut h);
+    opts.accept_language_override.hash(&mut h);
     h.finish()
 }
 
@@ -1644,6 +1648,14 @@ fn launch_options_from_env() -> LaunchOptions {
         download_path: env::var("AGENT_BROWSER_DOWNLOAD_PATH").ok(),
         viewport_size: None,
         use_real_keychain: false,
+        fingerprint_randomizer: env::var("AGENT_BROWSER_FINGERPRINT_RANDOMIZER")
+            .map(|v| v == "1" || v == "true")
+            .unwrap_or(false),
+        timezone_override: env::var("AGENT_BROWSER_TIMEZONE_OVERRIDE").ok(),
+        accept_language_override: env::var("AGENT_BROWSER_ACCEPT_LANGUAGE_OVERRIDE").ok(),
+        cdp_port: env::var("AGENT_BROWSER_CDP_PORT")
+            .ok()
+            .and_then(|s| s.parse().ok()),
     }
 }
 
@@ -1753,6 +1765,19 @@ async fn handle_launch(cmd: &Value, state: &mut DaemonState) -> Result<Value, St
             .map(String::from),
         viewport_size: None,
         use_real_keychain: false,
+        fingerprint_randomizer: cmd
+            .get("fingerprintRandomizer")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false),
+        timezone_override: cmd
+            .get("timezoneOverride")
+            .and_then(|v| v.as_str())
+            .map(String::from),
+        accept_language_override: cmd
+            .get("acceptLanguageOverride")
+            .and_then(|v| v.as_str())
+            .map(String::from),
+        cdp_port: cdp_port.map(|p| p as u16),
     };
 
     let new_hash = launch_hash(&launch_options);

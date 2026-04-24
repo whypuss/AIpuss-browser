@@ -118,6 +118,12 @@ pub struct LaunchOptions {
     pub timezone_override: Option<String>,
     /// Override the Accept-Language header.
     pub accept_language_override: Option<String>,
+    /// Expose a stable CDP HTTP endpoint at this port.
+    /// When set, the browser's CDP debugger is reachable at
+    /// http://localhost:<port>/json and ws://localhost:<port>/devtools/...
+    /// This enables external tools (Hermes, MCP servers, Playwright, etc.)
+    /// to attach to the running browser without launching a new one.
+    pub cdp_port: Option<u16>,
 }
 
 impl Default for LaunchOptions {
@@ -143,6 +149,7 @@ impl Default for LaunchOptions {
             fingerprint_randomizer: false,
             timezone_override: None,
             accept_language_override: None,
+            cdp_port: None,
         }
     }
 }
@@ -155,7 +162,10 @@ struct ChromeArgs {
 
 fn build_chrome_args(options: &LaunchOptions) -> Result<ChromeArgs, String> {
     let mut args = vec![
-        "--remote-debugging-port=0".to_string(),
+        format!(
+            "--remote-debugging-port={}",
+            options.cdp_port.map_or("0", |p| &p.to_string())
+        ),
         "--no-first-run".to_string(),
         "--no-default-browser-check".to_string(),
         "--disable-background-networking".to_string(),

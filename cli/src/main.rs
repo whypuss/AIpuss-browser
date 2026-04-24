@@ -596,7 +596,8 @@ fn main() {
         }
         let session = env::var("AGENT_BROWSER_SESSION").unwrap_or_else(|_| "default".to_string());
         let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
-        rt.block_on(native::daemon::run_daemon(&session));
+        let enable_mcp = env::var("AGENT_BROWSER_ENABLE_MCP").is_ok();
+        rt.block_on(native::daemon::run_daemon(&session, enable_mcp));
         return;
     }
 

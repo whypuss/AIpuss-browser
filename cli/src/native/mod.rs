@@ -47,6 +47,8 @@ pub mod agent_snapshot;
 #[allow(dead_code)]
 pub mod agent_state;
 #[allow(dead_code)]
+pub mod mcp;
+#[allow(dead_code)]
 pub mod opencli;
 #[allow(dead_code)]
 pub mod prefetch;

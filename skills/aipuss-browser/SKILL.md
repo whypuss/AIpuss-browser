@@ -826,3 +826,67 @@ The Chat tab is always visible in the dashboard. Set `AI_GATEWAY_API_KEY` to ena
 ./templates/authenticated-session.sh https://app.example.com/login
 ./templates/capture-workflow.sh https://example.com ./output
 ```
+
+## MCP (Model Context Protocol) Integration
+
+agent-browser can act as an MCP server, giving AI agents (Claude Desktop, etc.) native browser automation tools over stdio. This is the recommended integration path for AI-first workflows.
+
+### Starting with MCP Enabled
+
+```bash
+# Enable MCP mode (stdio transport)
+agent-browser --enable-mcp
+
+# Or with explicit CDP port (exposed at http://localhost:9222)
+agent-browser --enable-mcp --cdp-port 9222
+
+# Via environment variable
+AGENT_BROWSER_ENABLE_MCP=1 agent-browser
+```
+
+### Claude Desktop Configuration
+
+Add to `~/.claude/settings.json` (macOS) or `%APPDATA%\Claude\settings.json` (Windows):
+
+```json
+{
+  "mcpServers": {
+    "aipuss-browser": {
+      "command": "agent-browser",
+      "args": ["--enable-mcp", "--cdp-port", "9222"]
+    }
+  }
+}
+```
+
+Restart Claude Desktop after editing. The browser tools will appear in the agent tool palette automatically.
+
+### Available MCP Tools
+
+| Tool | Description |
+|------|-------------|
+| `navigate` | Navigate to a URL |
+| `snapshot` | Get DOM accessibility tree (use `full: true` for complete content) |
+| `click` | Click element by ref (e.g. `@e5`) |
+| `type_text` | Type into an input by element ref |
+| `screenshot` | Capture PNG screenshot (optional `path` param) |
+| `get_text` | Get inner text of an element |
+| `get_url` | Get current page URL |
+| `get_title` | Get document.title |
+| `press` | Press keyboard key (Enter, Tab, Escape, ArrowDown...) |
+| `scroll` | Scroll up/down |
+| `wait` | Wait for selector or fixed duration |
+| `back` / `forward` / `reload` | Navigation commands |
+| `list_tabs` | List all open tabs as JSON |
+| `new_tab` / `close_tab` / `switch_tab` | Tab management |
+| `evaluate` | Execute arbitrary JavaScript |
+| `get_content` | Extract full plain-text content of page |
+| `cdp_json` | Raw CDP command (for advanced users) |
+
+### CDP HTTP Endpoint
+
+When `--enable-mcp` is active, Chrome's CDP is also exposed at:
+- `http://localhost:<port>/json` — list all tabs and WS URLs
+- `http://localhost:<port>/json/protocol` — CDP protocol TypeScript definitions
+
+This lets any WebSocket-capable tool (Playwright, Puppeteer, etc.) attach directly to the running AIpuss browser without launching a new instance.
