@@ -39,7 +39,7 @@ pub struct PrefetchEntry {
     /// Content hash (SHA-256 of body, if small enough).
     pub content_hash: Option<String>,
     /// Content length in bytes.
-    pub content_length: Option usize,
+    pub content_length: Option<usize>,
     /// Whether the response indicated HTML content.
     pub is_html: bool,
 }
@@ -154,7 +154,12 @@ pub fn extract_links(html: &str, base_url: &Url) -> Vec<String> {
                     if let Ok(resolved) = base_url.join(raw) {
                         let resolved_str = resolved.as_str().trim_end_matches('/');
                         // Only keep same-domain or subdomain links to be conservative
-                        if resolved.host() == base_url.host() || resolved.host_str().map(|h| h.ends_with(base_url.host_str().unwrap_or(""))).unwrap_or(false) {
+                        if resolved.host() == base_url.host()
+                            || resolved
+                                .host_str()
+                                .map(|h| h.ends_with(base_url.host_str().unwrap_or("")))
+                                .unwrap_or(false)
+                        {
                             links.push(resolved_str.to_string());
                         }
                     }
@@ -305,7 +310,10 @@ impl PrefetchEngine {
         let result = client
             .get(url)
             .header("User-Agent", user_agent)
-            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+            .header(
+                "Accept",
+                "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            )
             .header("Accept-Language", "en-US,en;q=0.9")
             .send()
             .await;
@@ -386,10 +394,7 @@ impl PrefetchEngine {
                         content_type,
                         final_url: Some(final_url),
                         success: false,
-                        error: Some(format!(
-                            "Non-HTML or non-200 response (status={})",
-                            status
-                        )),
+                        error: Some(format!("Non-HTML or non-200 response (status={})", status)),
                         cached_at_ms: timestamp_ms,
                         content_hash: None,
                         content_length,
@@ -428,7 +433,7 @@ mod tests {
 
     #[test]
     fn test_extract_links_skips_anchors() {
-        let html = r#"<a href="#section">Skip</a><a href="/real">Real</a>"#;
+        let html = r##"<a href="#section">Skip</a><a href="/real">Real</a>"##;
         let base = Url::parse("https://example.com/").unwrap();
         let links = extract_links(html, &base);
         assert!(!links.iter().any(|l| l.contains('#')));
@@ -462,6 +467,10 @@ mod tests {
         }
 
         // First entry should be evicted (LRU)
-        assert!(!cache.inner.try_read().unwrap().contains_key("https://example.com/0"));
+        assert!(!cache
+            .inner
+            .try_read()
+            .unwrap()
+            .contains_key("https://example.com/0"));
     }
 }

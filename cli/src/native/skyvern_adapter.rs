@@ -258,7 +258,10 @@ pub mod skyvern_types {
         #[serde(rename = "locate_element")]
         LocateElement { prompt: String },
         #[serde(rename = "validate")]
-        Validate { prompt: String, model: Option<Value> },
+        Validate {
+            prompt: String,
+            model: Option<Value>,
+        },
         #[serde(rename = "prompt")]
         Prompt {
             prompt: String,
@@ -370,7 +373,10 @@ impl TaskRegistry {
             updated_at: now,
             webhook_callback_url: req.webhook_callback_url,
         };
-        self.tasks.write().await.insert(task_id.clone(), task.clone());
+        self.tasks
+            .write()
+            .await
+            .insert(task_id.clone(), task.clone());
         task
     }
 
@@ -569,7 +575,13 @@ pub async fn execute_skyvern_action(
             let ref_id = match &action.id {
                 Some(r) if r.starts_with("e") => r.clone(),
                 Some(r) => format!("e{}", r),
-                None => return (false, "InputText action requires element id".to_string(), None),
+                None => {
+                    return (
+                        false,
+                        "InputText action requires element id".to_string(),
+                        None,
+                    )
+                }
             };
             let text = action.text.clone().unwrap_or_default();
             json!({
@@ -595,7 +607,13 @@ pub async fn execute_skyvern_action(
             let ref_id = match &action.id {
                 Some(r) if r.starts_with("e") => r.clone(),
                 Some(r) => format!("e{}", r),
-                None => return (false, "SelectOption action requires element id".to_string(), None),
+                None => {
+                    return (
+                        false,
+                        "SelectOption action requires element id".to_string(),
+                        None,
+                    )
+                }
             };
             let option = action.option.clone();
             json!({
@@ -626,7 +644,11 @@ pub async fn execute_skyvern_action(
         SkyvernActionType::Keypress => {
             let key = action.key.clone().unwrap_or_default();
             let ref_id = action.id.as_ref().map(|r| {
-                if r.starts_with("e") { r.clone() } else { format!("e{}", r) }
+                if r.starts_with("e") {
+                    r.clone()
+                } else {
+                    format!("e{}", r)
+                }
             });
             let mut cmd = json!({
                 "action": "press",
@@ -640,7 +662,11 @@ pub async fn execute_skyvern_action(
         }
         SkyvernActionType::Scroll => {
             let ref_id = action.id.as_ref().map(|r| {
-                if r.starts_with("e") { r.clone() } else { format!("e{}", r) }
+                if r.starts_with("e") {
+                    r.clone()
+                } else {
+                    format!("e{}", r)
+                }
             });
             let direction = action.direction.clone().unwrap_or_default();
             let mut cmd = json!({
@@ -680,17 +706,26 @@ pub async fn execute_skyvern_action(
         }
         SkyvernActionType::Extract => {
             // Extract: take a snapshot and return structured data
-            let goal = action.text.clone().or(action.reasoning.clone()).unwrap_or_default();
+            let goal = action
+                .text
+                .clone()
+                .or(action.reasoning.clone())
+                .unwrap_or_default();
             json!({
                 "action": "snapshot",
                 "id": id,
                 "mode": "full"
             })
         }
-        SkyvernActionType::UploadFile | SkyvernActionType::SolveCaptcha | SkyvernActionType::NullAction => {
+        SkyvernActionType::UploadFile
+        | SkyvernActionType::SolveCaptcha
+        | SkyvernActionType::NullAction => {
             return (
                 false,
-                format!("Action type {:?} not yet implemented in adapter", action.action_type),
+                format!(
+                    "Action type {:?} not yet implemented in adapter",
+                    action.action_type
+                ),
                 None,
             );
         }
@@ -712,7 +747,10 @@ pub async fn execute_skyvern_action(
             .and_then(|v| v.as_str())
             .map(String::from)
             .or_else(|| {
-                result.get("message").and_then(|v| v.as_str()).map(String::from)
+                result
+                    .get("message")
+                    .and_then(|v| v.as_str())
+                    .map(String::from)
             })
     };
 
@@ -864,7 +902,13 @@ async fn run_skyvern_agent_loop(
             Ok(r) => r,
             Err(e) => {
                 registry
-                    .set_failure(&task_id, format!("Failed to parse LLM response: {} | Raw: {}", e, llm_response))
+                    .set_failure(
+                        &task_id,
+                        format!(
+                            "Failed to parse LLM response: {} | Raw: {}",
+                            e, llm_response
+                        ),
+                    )
                     .await;
                 return;
             }
@@ -872,7 +916,9 @@ async fn run_skyvern_agent_loop(
 
         // Check if goal already achieved
         if llm_resp.user_goal_achieved {
-            registry.update_status(&task_id, TaskStatus::Completed).await;
+            registry
+                .update_status(&task_id, TaskStatus::Completed)
+                .await;
             registry
                 .set_extracted_info(&task_id, json!({"goal_achieved": true}))
                 .await;
@@ -893,11 +939,12 @@ async fn run_skyvern_agent_loop(
         let mut extracted_data = None;
 
         for action in &llm_resp.actions {
-            let (success, msg, data) =
-                execute_skyvern_action(action, &mut state).await;
+            let (success, msg, data) = execute_skyvern_action(action, &mut state).await;
 
             if msg == "COMPLETE" {
-                registry.update_status(&task_id, TaskStatus::Completed).await;
+                registry
+                    .update_status(&task_id, TaskStatus::Completed)
+                    .await;
                 registry
                     .set_extracted_info(&task_id, data.unwrap_or(json!({})))
                     .await;
@@ -966,7 +1013,9 @@ async fn run_skyvern_agent_loop(
             if verify_resp.contains("\"goal_achieved\": true")
                 || verify_resp.contains("\"goal_achieved\":true")
             {
-                registry.update_status(&task_id, TaskStatus::Completed).await;
+                registry
+                    .update_status(&task_id, TaskStatus::Completed)
+                    .await;
                 registry
                     .set_extracted_info(&task_id, extracted_data.unwrap_or(json!({})))
                     .await;
@@ -990,7 +1039,11 @@ pub async fn handle_run_sdk_action(
     let workflow_run_id = Uuid::new_v4().to_string();
 
     match action {
-        SdkAction::AiClick { selector, intention, .. } => {
+        SdkAction::AiClick {
+            selector,
+            intention,
+            ..
+        } => {
             let selector = selector.clone().unwrap_or_default();
             let cmd = json!({
                 "action": "click",
@@ -1004,7 +1057,9 @@ pub async fn handle_run_sdk_action(
                 "result": result.get("data")
             }))
         }
-        SdkAction::AiInputText { selector, value, .. } => {
+        SdkAction::AiInputText {
+            selector, value, ..
+        } => {
             let selector = selector.clone().unwrap_or_default();
             let value = value.clone().unwrap_or_default();
             let cmd = json!({
@@ -1030,7 +1085,11 @@ pub async fn handle_run_sdk_action(
                 "ai_act requires the full Skyvern task loop. Use POST /skyvern/tasks instead."
             ))
         }
-        SdkAction::Extract { prompt, extract_schema, .. } => {
+        SdkAction::Extract {
+            prompt,
+            extract_schema,
+            ..
+        } => {
             let cmd = json!({
                 "action": "snapshot",
                 "id": "sdk",
@@ -1047,7 +1106,10 @@ pub async fn handle_run_sdk_action(
             let extract_prompt = format!(
                 "Extract structured data from this page.\nGoal: {}\nSchema: {}\n\nElements:\n{}",
                 prompt,
-                extract_schema.as_ref().map(|s| serde_json::to_string(s).unwrap_or_default()).unwrap_or_default(),
+                extract_schema
+                    .as_ref()
+                    .map(|s| serde_json::to_string(s).unwrap_or_default())
+                    .unwrap_or_default(),
                 tree
             );
 
@@ -1078,7 +1140,11 @@ pub async fn handle_run_sdk_action(
                 }
             }))
         }
-        SdkAction::Prompt { prompt, response_schema, .. } => {
+        SdkAction::Prompt {
+            prompt,
+            response_schema,
+            ..
+        } => {
             let cmd = json!({
                 "action": "snapshot",
                 "id": "sdk",
@@ -1102,10 +1168,7 @@ pub async fn handle_run_sdk_action(
                 }
             }))
         }
-        _ => Err(format!(
-            "SDK action type {:?} not yet implemented",
-            action
-        )),
+        _ => Err(format!("SDK action type {:?} not yet implemented", action)),
     }
 }
 
@@ -1191,10 +1254,7 @@ impl LLMProvider for AnthropicLLMProvider {
     async fn call(&self, prompt: &str) -> Result<String, String> {
         let client = reqwest::Client::new();
         let response = client
-            .post(format!(
-                "{}/messages",
-                self.base_url.trim_end_matches('/')
-            ))
+            .post(format!("{}/messages", self.base_url.trim_end_matches('/')))
             .header("x-api-key", &self.api_key)
             .header("anthropic-version", "2023-06-01")
             .header("Content-Type", "application/json")
@@ -1218,7 +1278,12 @@ impl LLMProvider for AnthropicLLMProvider {
             .and_then(|content| content.get("text"))
             .and_then(|t| t.as_str())
             .map(String::from)
-            .ok_or_else(|| format!("Failed to extract content from Anthropic response: {}", body))
+            .ok_or_else(|| {
+                format!(
+                    "Failed to extract content from Anthropic response: {}",
+                    body
+                )
+            })
     }
 }
 

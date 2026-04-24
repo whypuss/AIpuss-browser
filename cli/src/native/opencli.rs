@@ -184,9 +184,12 @@ impl OpenCliHost {
     async fn wait_ready(&self) -> Result<(), OpenCliError> {
         let mut line = String::new();
         loop {
-            self.stdout.lock().await.read_line(&mut line).await.map_err(|e| {
-                OpenCliError::Communication(format!("read_line failed: {e}"))
-            })?;
+            self.stdout
+                .lock()
+                .await
+                .read_line(&mut line)
+                .await
+                .map_err(|e| OpenCliError::Communication(format!("read_line failed: {e}")))?;
             let trimmed = line.trim();
             if trimmed.is_empty() {
                 continue;
@@ -201,7 +204,11 @@ impl OpenCliHost {
     }
 
     /// Send a JSON-RPC request and wait for response.
-    async fn call(&self, method: &str, params: Option<serde_json::Value>) -> Result<serde_json::Value, OpenCliError> {
+    async fn call(
+        &self,
+        method: &str,
+        params: Option<serde_json::Value>,
+    ) -> Result<serde_json::Value, OpenCliError> {
         let id = {
             let mut guard = self.next_id.write().await;
             let id = *guard;
@@ -216,7 +223,8 @@ impl OpenCliHost {
             params,
         };
 
-        let req_str = serde_json::to_string(&req).map_err(|e| OpenCliError::Serialize(e.to_string()))?;
+        let req_str =
+            serde_json::to_string(&req).map_err(|e| OpenCliError::Serialize(e.to_string()))?;
         let mut stdin = self.stdin.write().await;
         stdin
             .write_all(req_str.as_bytes())
@@ -230,23 +238,29 @@ impl OpenCliHost {
 
         // Read response
         let mut line = String::new();
-        timeout(Duration::from_secs(120), self.stdout.lock().await.read_line(&mut line)).await
-            .map_err(|_| OpenCliError::Timeout)?
-            .map_err(|e| OpenCliError::Communication(format!("read_line failed: {e}")))?;
+        timeout(
+            Duration::from_secs(120),
+            self.stdout.lock().await.read_line(&mut line),
+        )
+        .await
+        .map_err(|_| OpenCliError::Timeout)?
+        .map_err(|e| OpenCliError::Communication(format!("read_line failed: {e}")))?;
 
-        let resp: JsonRpcResponse =
-            serde_json::from_str(line.trim()).map_err(|e| OpenCliError::Parse(format!("{e}: {line}")))?;
+        let resp: JsonRpcResponse = serde_json::from_str(line.trim())
+            .map_err(|e| OpenCliError::Parse(format!("{e}: {line}")))?;
 
         if let Some(err) = resp.error {
             return Err(OpenCliError::Method(err.message));
         }
 
-        resp.result
-            .ok_or_else(|| OpenCliError::NoResult)
+        resp.result.ok_or_else(|| OpenCliError::NoResult)
     }
 
     /// List all available opencli commands.
-    pub async fn list_commands(&self, format: Option<&str>) -> Result<serde_json::Value, OpenCliError> {
+    pub async fn list_commands(
+        &self,
+        format: Option<&str>,
+    ) -> Result<serde_json::Value, OpenCliError> {
         self.call(
             "opencli.list",
             Some(serde_json::json!({ "format": format.unwrap_or("json") })),
@@ -291,7 +305,11 @@ impl OpenCliHost {
     }
 
     /// Explore a URL and discover its capabilities.
-    pub async fn explore(&self, url: &str, timeout_secs: Option<u64>) -> Result<ExploreResult, OpenCliError> {
+    pub async fn explore(
+        &self,
+        url: &str,
+        timeout_secs: Option<u64>,
+    ) -> Result<ExploreResult, OpenCliError> {
         let result: serde_json::Value = self
             .call(
                 "opencli.explore",

@@ -1,7 +1,7 @@
 //! Agent-native semantic DOM snapshot.
 //!
 //! Enhances the base accessibility tree with:
-!//! - **Semantic priority scoring** — ranks elements by actionability for LLMs
+//! - **Semantic priority scoring** — ranks elements by actionability for LLMs
 //! - **Ad/decoration filtering** — removes noise from ad iframes and decorative nodes
 //! - **Noise level indicator** — tells the agent how "clean" the snapshot is
 //! - **Action hints** — inline suggestions for high-value interactions
@@ -166,11 +166,7 @@ const INTERACTIVE_ROLES: &[&str] = &[
 ];
 
 /// Estimate noise grade from page characteristics.
-fn assess_noise(
-    tree_text: &str,
-    total_refs: usize,
-    content_roles_seen: usize,
-) -> NoiseAssessment {
+fn assess_noise(tree_text: &str, total_refs: usize, content_roles_seen: usize) -> NoiseAssessment {
     let mut noise_sources = Vec::new();
     let mut score: f64 = 0.0;
 
@@ -280,9 +276,9 @@ fn compute_priority(role: &str, name: &str, has_ref: bool, depth: usize) -> u8 {
 
     // Buttons and links with action-oriented names score higher
     let action_keywords = [
-        "submit", "save", "delete", "cancel", "confirm", "next", "prev",
-        "search", "login", "signin", "signup", "register", "download",
-        "upload", "close", "open", "send", "get", "start", "stop",
+        "submit", "save", "delete", "cancel", "confirm", "next", "prev", "search", "login",
+        "signin", "signup", "register", "download", "upload", "close", "open", "send", "get",
+        "start", "stop",
     ];
     let name_lower = name.to_lowercase();
     for kw in &action_keywords {
@@ -293,7 +289,14 @@ fn compute_priority(role: &str, name: &str, has_ref: bool, depth: usize) -> u8 {
     }
 
     // Dangerous actions get a small bonus — agent should notice them
-    let danger_keywords = ["delete", "remove", "destroy", "drop", "reset", "unsubscribe"];
+    let danger_keywords = [
+        "delete",
+        "remove",
+        "destroy",
+        "drop",
+        "reset",
+        "unsubscribe",
+    ];
     for kw in &danger_keywords {
         if name_lower.contains(kw) {
             score += 3;
@@ -308,7 +311,10 @@ fn compute_priority(role: &str, name: &str, has_ref: bool, depth: usize) -> u8 {
 fn priority_reasoning(role: &str, name: &str, priority: u8) -> String {
     if INTERACTIVE_ROLES.contains(&role) {
         if !name.is_empty() {
-            format!("role={} with name \"{}\" — direct action target", role, name)
+            format!(
+                "role={} with name \"{}\" — direct action target",
+                role, name
+            )
         } else {
             format!("role={} — direct action target", role)
         }
@@ -421,13 +427,21 @@ mod tests {
     #[test]
     fn test_priority_interactive_button_high() {
         let p = compute_priority("button", "Submit Form", true, 2);
-        assert!(p >= 80, "button with action name should score high, got {}", p);
+        assert!(
+            p >= 80,
+            "button with action name should score high, got {}",
+            p
+        );
     }
 
     #[test]
     fn test_priority_empty_name_low() {
         let p = compute_priority("link", "", true, 8);
-        assert!(p < 80, "deep link with no name should score lower, got {}", p);
+        assert!(
+            p < 80,
+            "deep link with no name should score lower, got {}",
+            p
+        );
     }
 
     #[test]
@@ -439,7 +453,8 @@ mod tests {
 
     #[test]
     fn test_noise_assessment_ad_heavy() {
-        let mut tree = String::from("navigation\n  link \"Home\" [ref=e1]\n  iframe[src*='doubleclick']\n");
+        let mut tree =
+            String::from("navigation\n  link \"Home\" [ref=e1]\n  iframe[src*='doubleclick']\n");
         for _ in 0..10 {
             tree.push_str("  generic [class*='ad-']\n");
         }

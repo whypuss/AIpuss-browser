@@ -72,9 +72,21 @@ pub fn get_ai_api_key() -> Option<String> {
     std::env::var("AI_API_KEY")
         .ok()
         .filter(|k| !k.is_empty())
-        .or_else(|| std::env::var("NVIDIA_API_KEY").ok().filter(|k| !k.is_empty()))
-        .or_else(|| std::env::var("OPENAI_API_KEY").ok().filter(|k| !k.is_empty()))
-        .or_else(|| std::env::var("ANTHROPIC_API_KEY").ok().filter(|k| !k.is_empty()))
+        .or_else(|| {
+            std::env::var("NVIDIA_API_KEY")
+                .ok()
+                .filter(|k| !k.is_empty())
+        })
+        .or_else(|| {
+            std::env::var("OPENAI_API_KEY")
+                .ok()
+                .filter(|k| !k.is_empty())
+        })
+        .or_else(|| {
+            std::env::var("ANTHROPIC_API_KEY")
+                .ok()
+                .filter(|k| !k.is_empty())
+        })
 }
 
 pub fn get_ai_model() -> String {

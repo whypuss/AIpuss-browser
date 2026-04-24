@@ -654,8 +654,15 @@ pub async fn capture_element_crops(
         .filter(|(_, e)| {
             matches!(
                 e.role.as_str(),
-                "button" | "link" | "textbox" | "checkbox" | "radio"
-                    | "combobox" | "menuitem" | "tab" | "option"
+                "button"
+                    | "link"
+                    | "textbox"
+                    | "checkbox"
+                    | "radio"
+                    | "combobox"
+                    | "menuitem"
+                    | "tab"
+                    | "option"
             )
         })
         .take(max_crops)
@@ -704,7 +711,11 @@ pub async fn capture_element_crops(
             .and_then(|v| serde_json::from_value(v).ok())
             .unwrap_or_default();
 
-        if !bounds.get("found").and_then(|v| v.as_bool()).unwrap_or(false) {
+        if !bounds
+            .get("found")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false)
+        {
             continue;
         }
 

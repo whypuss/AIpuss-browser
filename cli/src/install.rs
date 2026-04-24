@@ -18,7 +18,8 @@ pub fn find_installed_chrome() -> Option<PathBuf> {
     // 1. Prefer ungoogled-chromium on macOS
     #[cfg(target_os = "macos")]
     {
-        let ungoogled = PathBuf::from("/Applications/Ungoogled Chromium.app/Contents/MacOS/Ungoogled Chromium");
+        let ungoogled =
+            PathBuf::from("/Applications/Ungoogled Chromium.app/Contents/MacOS/Ungoogled Chromium");
         if ungoogled.exists() {
             return Some(ungoogled);
         }

@@ -190,7 +190,7 @@ fn build_chrome_args(options: &LaunchOptions) -> Result<ChromeArgs, String> {
     if options.fingerprint_randomizer {
         // Randomize canvas fingerprint by adding noise to 2D rendering
         args.push("--disable-canvas-aa".to_string()); // Disable antialiasing to vary pixel output
-        // Randomize WebGL renderer info
+                                                      // Randomize WebGL renderer info
         args.push("--disable-webgl".to_string()); // Force disabled — too fingerprintable
         args.push("--disable-webgl2".to_string());
         // Disable ClientRects — a major fingerprinting vector

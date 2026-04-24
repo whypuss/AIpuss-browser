@@ -1,6 +1,12 @@
 #[allow(dead_code)]
 pub mod actions;
 #[allow(dead_code)]
+pub mod agent_commands;
+#[allow(dead_code)]
+pub mod agent_snapshot;
+#[allow(dead_code)]
+pub mod agent_state;
+#[allow(dead_code)]
 pub mod auth;
 #[allow(dead_code)]
 pub mod browser;
@@ -19,15 +25,23 @@ pub mod inspect_server;
 #[allow(dead_code)]
 pub mod interaction;
 #[allow(dead_code)]
+pub mod mcp;
+#[allow(dead_code)]
 pub mod network;
 #[allow(dead_code)]
+pub mod opencli;
+#[allow(dead_code)]
 pub mod policy;
+#[allow(dead_code)]
+pub mod prefetch;
 #[allow(dead_code)]
 pub mod providers;
 #[allow(dead_code)]
 pub mod recording;
 #[allow(dead_code)]
 pub mod screenshot;
+#[allow(dead_code)]
+pub mod skyvern_adapter;
 #[allow(dead_code)]
 pub mod snapshot;
 #[allow(dead_code)]
@@ -40,20 +54,6 @@ pub mod stream;
 pub mod tracing;
 #[allow(dead_code)]
 pub mod webdriver;
-#[allow(dead_code)]
-pub mod agent_commands;
-#[allow(dead_code)]
-pub mod agent_snapshot;
-#[allow(dead_code)]
-pub mod agent_state;
-#[allow(dead_code)]
-pub mod mcp;
-#[allow(dead_code)]
-pub mod opencli;
-#[allow(dead_code)]
-pub mod prefetch;
-#[allow(dead_code)]
-pub mod skyvern_adapter;
 
 #[cfg(test)]
 mod e2e_tests;

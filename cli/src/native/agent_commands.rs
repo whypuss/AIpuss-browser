@@ -203,7 +203,11 @@ pub async fn search_github(
 ) -> Result<Value, String> {
     let client = reqwest::Client::new();
 
-    let mut url = format!("{}/search/repositories?q={}", GITHUB_API_BASE, urlencoding::encode(query));
+    let mut url = format!(
+        "{}/search/repositories?q={}",
+        GITHUB_API_BASE,
+        urlencoding::encode(query)
+    );
     if let Some(s) = sort {
         url.push_str(&format!("&sort={}", s));
     }
@@ -218,7 +222,9 @@ pub async fn search_github(
     let status = resp.status();
 
     if status.as_u16() == 403 {
-        return Err("GitHub API rate limit exceeded. Use a GitHub token for higher limits.".to_string());
+        return Err(
+            "GitHub API rate limit exceeded. Use a GitHub token for higher limits.".to_string(),
+        );
     }
     if status.as_u16() == 422 {
         return Err("GitHub API: invalid search query".to_string());
@@ -276,7 +282,10 @@ pub async fn find_best_repo(
     let query = query_parts.join("+");
     let results = search_github(&query, Some("stars"), 5, token).await?;
 
-    let repos = results.get("results").and_then(|v| v.as_array()).unwrap_or(&[]);
+    let repos = results
+        .get("results")
+        .and_then(|v| v.as_array())
+        .unwrap_or(&[]);
 
     if repos.is_empty() {
         return Ok(json!({
@@ -433,7 +442,13 @@ pub async fn execute_page_command(
                 .get("properties")
                 .and_then(|v| v.as_array())
                 .map(|a| a.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>())
-                .unwrap_or_else(|| vec!["textContent".to_string(), "href".to_string(), "src".to_string()]);
+                .unwrap_or_else(|| {
+                    vec![
+                        "textContent".to_string(),
+                        "href".to_string(),
+                        "src".to_string(),
+                    ]
+                });
 
             let selectors_json = serde_json::to_string(&selectors).unwrap_or_default();
             let props_json = serde_json::to_string(&properties).unwrap_or_default();
@@ -479,7 +494,10 @@ pub async fn execute_page_command(
         }
 
         "audit_accessibility" => {
-            let severity = params.get("severity").and_then(|v| v.as_str()).unwrap_or("all");
+            let severity = params
+                .get("severity")
+                .and_then(|v| v.as_str())
+                .unwrap_or("all");
 
             let js = format!(
                 r#"(function() {{
@@ -524,10 +542,15 @@ pub async fn execute_page_command(
                 .map_err(|e| e.to_string())?;
 
             let issues = result.result.value;
-            Ok(json!({ "issues": issues, "count": issues.as_array().map(|a| a.len()).unwrap_or(0) }))
+            Ok(
+                json!({ "issues": issues, "count": issues.as_array().map(|a| a.len()).unwrap_or(0) }),
+            )
         }
 
-        _ => Err(format!("Command '{}' requires CDP integration and is not yet implemented", cmd.id)),
+        _ => Err(format!(
+            "Command '{}' requires CDP integration and is not yet implemented",
+            cmd.id
+        )),
     }
 }
 
@@ -556,10 +579,7 @@ pub async fn dispatch_command(
                 .and_then(|v| v.as_str())
                 .ok_or("Missing required field: query")?;
             let sort = params.get("sort").and_then(|v| v.as_str());
-            let limit = params
-                .get("limit")
-                .and_then(|v| v.as_u64())
-                .unwrap_or(5) as usize;
+            let limit = params.get("limit").and_then(|v| v.as_u64()).unwrap_or(5) as usize;
             search_github(query, sort, limit, github_token).await
         }
 
@@ -579,7 +599,9 @@ pub async fn dispatch_command(
         "extract_structured_data" => {
             let cdp = cdp_client.ok_or("CDP client required for this command")?;
             let sid = session_id.ok_or("Session ID required for this command")?;
-            let schema = params.get("schema").ok_or("Missing required field: schema")?;
+            let schema = params
+                .get("schema")
+                .ok_or("Missing required field: schema")?;
             let selector = params
                 .get("selector")
                 .and_then(|v| v.as_str())
@@ -600,7 +622,9 @@ pub async fn dispatch_command(
                     }});
                     return result;
                 }})()"#,
-                schema_json, selector, selector.replace('\'', "\\'")
+                schema_json,
+                selector,
+                selector.replace('\'', "\\'")
             );
 
             let result: super::cdp::types::EvaluateResult = cdp

@@ -351,7 +351,8 @@ pub struct McpState {
     pub tokio_handle: tokio::runtime::Handle,
     /// Tool call handler: fn(method_name, arguments_json) -> Result<serde_json::Value, String>
     /// Set during startup. In practice this calls into the daemon's action handlers.
-    pub tool_handler: Arc<Mutex<Option<Box<dyn Fn(String, Value) -> Result<Value, String> + Send + Sync>>>>,
+    pub tool_handler:
+        Arc<Mutex<Option<Box<dyn Fn(String, Value) -> Result<Value, String> + Send + Sync>>>>,
 }
 
 impl McpState {
@@ -390,10 +391,7 @@ fn read_request() -> Option<JsonRpcRequest> {
             match serde_json::from_str::<JsonRpcRequest>(&line) {
                 Ok(req) => Some(req),
                 Err(e) => {
-                    eprintln!(
-                        "[aipuss-mcp] failed to parse JSON-RPC request: {}",
-                        e
-                    );
+                    eprintln!("[aipuss-mcp] failed to parse JSON-RPC request: {}", e);
                     None
                 }
             }
@@ -512,7 +510,9 @@ fn handle_request(req: JsonRpcRequest, state: &McpState) -> bool {
 
         "tools/call" => {
             // Parse tool call params
-            let tool_name = req.params.get("name")
+            let tool_name = req
+                .params
+                .get("name")
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .to_string();
@@ -524,44 +524,46 @@ fn handle_request(req: JsonRpcRequest, state: &McpState) -> bool {
             };
 
             match handler {
-                Some(h) => {
-                    match h(tool_name.clone(), arguments) {
-                        Ok(result) => {
-                            write_response(&JsonRpcResponse {
-                                jsonrpc: "2.0".into(),
-                                id: req.id,
-                                result: Some(json!({
-                                    "content": [
-                                        {
-                                            "type": "text",
-                                            "text": result.to_string()
-                                        }
-                                    ],
-                                    "isError": false
-                                })),
-                                error: None,
-                            });
-                        }
-                        Err(e) => {
-                            write_response(&JsonRpcResponse {
-                                jsonrpc: "2.0".into(),
-                                id: req.id,
-                                result: Some(json!({
-                                    "content": [
-                                        {
-                                            "type": "text",
-                                            "text": format!("error: {}", e)
-                                        }
-                                    ],
-                                    "isError": true
-                                })),
-                                error: None,
-                            });
-                        }
+                Some(h) => match h(tool_name.clone(), arguments) {
+                    Ok(result) => {
+                        write_response(&JsonRpcResponse {
+                            jsonrpc: "2.0".into(),
+                            id: req.id,
+                            result: Some(json!({
+                                "content": [
+                                    {
+                                        "type": "text",
+                                        "text": result.to_string()
+                                    }
+                                ],
+                                "isError": false
+                            })),
+                            error: None,
+                        });
                     }
-                }
+                    Err(e) => {
+                        write_response(&JsonRpcResponse {
+                            jsonrpc: "2.0".into(),
+                            id: req.id,
+                            result: Some(json!({
+                                "content": [
+                                    {
+                                        "type": "text",
+                                        "text": format!("error: {}", e)
+                                    }
+                                ],
+                                "isError": true
+                            })),
+                            error: None,
+                        });
+                    }
+                },
                 None => {
-                    write_error(req.id, -32000, "No browser is running. Start AIpuss with --enable-mcp first.");
+                    write_error(
+                        req.id,
+                        -32000,
+                        "No browser is running. Start AIpuss with --enable-mcp first.",
+                    );
                 }
             }
             true
@@ -645,7 +647,10 @@ fn handle_request(req: JsonRpcRequest, state: &McpState) -> bool {
 /// This is blocking — call it in a dedicated thread when --enable-mcp is set.
 pub fn run_stdio_server(state: McpState) {
     // Write initial server info to stderr so parent process can confirm startup
-    eprintln!("[aipuss-mcp] MCP stdio server starting on cdp-port={}", state.cdp_port);
+    eprintln!(
+        "[aipuss-mcp] MCP stdio server starting on cdp-port={}",
+        state.cdp_port
+    );
     eprintln!("[aipuss-mcp] Send JSON-RPC requests to stdin. See --help for protocol details.");
 
     loop {
@@ -682,9 +687,7 @@ pub fn run_stdio_server_with_handler(
         "[aipuss-mcp] MCP stdio server starting on cdp-port={}",
         state.cdp_port
     );
-    eprintln!(
-        "[aipuss-mcp] handler registered, ready for JSON-RPC requests on stdin"
-    );
+    eprintln!("[aipuss-mcp] handler registered, ready for JSON-RPC requests on stdin");
 
     // Swap the handler into state so handle_request can use it
     {

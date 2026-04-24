@@ -35,8 +35,7 @@ pub async fn run_daemon(session: &str, enable_mcp: bool) {
     // When --enable-mcp is set, create the MCP handler Arc and spawn the stdio server
     // in a background thread before the socket server starts.
     let mcp_tool_handler: Option<McpToolHandler> = if enable_mcp {
-        let handler: McpToolHandler =
-            std::sync::Arc::new(tokio::sync::Mutex::new(None));
+        let handler: McpToolHandler = std::sync::Arc::new(tokio::sync::Mutex::new(None));
         let handler_for_thread = handler.clone();
 
         // Spawn the MCP stdio server thread. It creates its own tokio runtime.
@@ -215,7 +214,11 @@ async fn run_socket_server(
         let state_for_handler = state.clone();
         // Channel: (tool_name, arguments, response_sender) — lets the sync handler
         // forward work to the async run_socket_server loop without needing block_on.
-        let (tx, mut rx) = mpsc::channel::<(String, Value, tokio::sync::oneshot::Sender<Result<Value, String>>)>(64);
+        let (tx, mut rx) = mpsc::channel::<(
+            String,
+            Value,
+            tokio::sync::oneshot::Sender<Result<Value, String>>,
+        )>(64);
 
         // Spawn a dedicated async task to handle MCP commands.
         // This task lives inside the tokio runtime, so it CAN use `.await`.
@@ -239,14 +242,17 @@ async fn run_socket_server(
             }
         });
 
-        let handler = Box::new(move |tool_name: String, arguments: Value| -> Result<Value, String> {
-            let (reply_tx, reply_rx) = tokio::sync::oneshot::channel();
-            // Try to send without blocking the tokio runtime
-            tx.try_send((tool_name, arguments, reply_tx))
-                .map_err(|_| "MCP command queue full — daemon overloaded".to_string())?;
-            reply_rx.blocking_recv()
-                .map_err(|e| format!("MCP handler recv error: {}", e))?
-        });
+        let handler = Box::new(
+            move |tool_name: String, arguments: Value| -> Result<Value, String> {
+                let (reply_tx, reply_rx) = tokio::sync::oneshot::channel();
+                // Try to send without blocking the tokio runtime
+                tx.try_send((tool_name, arguments, reply_tx))
+                    .map_err(|_| "MCP command queue full — daemon overloaded".to_string())?;
+                reply_rx
+                    .blocking_recv()
+                    .map_err(|e| format!("MCP handler recv error: {}", e))?
+            },
+        );
         let mut guard = handler_arc.lock().unwrap();
         *guard = Some(handler);
     }

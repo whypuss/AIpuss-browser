@@ -163,9 +163,17 @@ impl StateDiff {
 
         StateDiff {
             url_changed,
-            new_url: if url_changed { Some(post.url.clone()) } else { None },
+            new_url: if url_changed {
+                Some(post.url.clone())
+            } else {
+                None
+            },
             title_changed,
-            new_title: if title_changed { Some(post.title.clone()) } else { None },
+            new_title: if title_changed {
+                Some(post.title.clone())
+            } else {
+                None
+            },
             elements_added,
             elements_removed,
             added_refs,
@@ -224,30 +232,52 @@ impl SelfCorrection {
 
         // URL was same — action might not have targeted the right element
         if !diff.url_changed {
-            suggestions.push("The URL did not change — verify the selector targets the correct element".to_string());
+            suggestions.push(
+                "The URL did not change — verify the selector targets the correct element"
+                    .to_string(),
+            );
             suggestions.push("Try using a more specific CSS selector or aria-label".to_string());
         }
 
         // Action-specific hints
         let action_lower = action_name.to_lowercase();
         if action_lower.contains("click") {
-            suggestions.push("The element may be obscured by an overlay or require scrolling into view".to_string());
-            suggestions.push("Try using browser_scroll first to bring the element into viewport".to_string());
+            suggestions.push(
+                "The element may be obscured by an overlay or require scrolling into view"
+                    .to_string(),
+            );
+            suggestions.push(
+                "Try using browser_scroll first to bring the element into viewport".to_string(),
+            );
             if possibly_lazy_loaded {
-                suggestions.push("The target element may be lazy-loaded — try waiting for the network to settle".to_string());
+                suggestions.push(
+                    "The target element may be lazy-loaded — try waiting for the network to settle"
+                        .to_string(),
+                );
             }
         } else if action_lower.contains("type") || action_lower.contains("fill") {
-            suggestions.push("The input may be read-only, disabled, or inside a shadow DOM".to_string());
-            suggestions.push("Try using browser_evaluate to directly set the value via JavaScript".to_string());
+            suggestions
+                .push("The input may be read-only, disabled, or inside a shadow DOM".to_string());
+            suggestions.push(
+                "Try using browser_evaluate to directly set the value via JavaScript".to_string(),
+            );
         } else if action_lower.contains("navigate") || action_lower.contains("goto") {
-            suggestions.push("Navigation did not occur — the URL may be invalid or blocked".to_string());
-            suggestions.push("Check for CSP (Content Security Policy) restrictions or network errors".to_string());
+            suggestions
+                .push("Navigation did not occur — the URL may be invalid or blocked".to_string());
+            suggestions.push(
+                "Check for CSP (Content Security Policy) restrictions or network errors"
+                    .to_string(),
+            );
         }
 
         // Generic fallback
         if suggestions.is_empty() {
-            suggestions.push("Take a new snapshot and verify the target element still exists".to_string());
-            suggestions.push("The page may have updated via JavaScript — try waiting before retrying".to_string());
+            suggestions
+                .push("Take a new snapshot and verify the target element still exists".to_string());
+            suggestions.push(
+                "The page may have updated via JavaScript — try waiting before retrying"
+                    .to_string(),
+            );
         }
 
         Some(SelfCorrection {

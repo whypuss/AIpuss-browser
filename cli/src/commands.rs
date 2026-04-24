@@ -718,7 +718,8 @@ fn parse_command_inner(args: &[String], flags: &Flags) -> Result<Value, ParseErr
                             let key = arg.trim_start_matches("--");
                             // Check if next arg is a value (not a flag)
                             if i + 1 < rest_args.len() && !rest_args[i + 1].starts_with("--") {
-                                args_map.insert(key.to_string(), serde_json::json!(rest_args[i + 1]));
+                                args_map
+                                    .insert(key.to_string(), serde_json::json!(rest_args[i + 1]));
                                 i += 2;
                             } else {
                                 args_map.insert(key.to_string(), serde_json::json!(true));
