@@ -16,6 +16,7 @@ AI-first 瀏覽器自動化 CLI，基於 Rust + CDP。
 - **狀態持久化** — 自動儲存/還原 cookies 和 localStorage
 - **Auth Vault** — 加密儲存憑證
 - **截圖差異比對** — 回歸測試用
+- **MCP Server 原生整合** — 啟動後即為標準 MCP 伺服器，Claude Desktop、Cursor、Zed 等 AI 工具直接獲得 20 個瀏覽器工具（stdio 傳輸，零額外配置）
 
 ## 安裝
 
@@ -206,6 +207,55 @@ let provider = AnthropicLLMProvider::new(api_key, "claude-3-5-sonnet".to_string(
 - `PrefetchCache`（`prefetch.rs`）→ background 預取
 - CDP 命令（`actions.rs`）→ act 層的實際執行
 
+## MCP Server（Model Context Protocol）
+
+AIpuss 內建原生 MCP 伺服器，支援 Claude Desktop、Cursor、Zed 等 AI 工具直接呼叫瀏覽器操作，無需外部 Playwright 或 API key。
+
+### 啟動方式
+
+```bash
+# 開啟 MCP 模式（stdio 傳輸，適用 Claude Desktop 等）
+aipuss-browser --enable-mcp
+
+# 指定 CDP 端口（同時透過 http://localhost:<port> 暴露 CDP HTTP）
+aipuss-browser --enable-mcp --cdp-port 9222
+
+# 或透過環境變數
+AGENT_BROWSER_ENABLE_MCP=1 aipuss-browser
+```
+
+### Claude Desktop 設定
+
+在 `~/.claude/settings.json` 加入：
+
+```json
+{
+  "mcpServers": {
+    "aipuss-browser": {
+      "command": "aipuss-browser",
+      "args": ["--enable-mcp", "--cdp-port", "9222"]
+    }
+  }
+}
+```
+
+重啟 Claude Desktop 後，MCP tools 面板會出現 `aipuss-browser` 群組，共 20 個工具：
+
+| 工具 | 說明 |
+|------|------|
+| `navigate` | 開啟 URL |
+| `snapshot` | 取得無障礙樹（`full: true` 完整內容） |
+| `click` / `type_text` / `press` | 按引用操作元素 |
+| `screenshot` | 截圖（可指定路徑） |
+| `get_text` / `get_url` / `get_title` | 讀取當前頁面資訊 |
+| `back` / `forward` / `reload` | 導航 |
+| `list_tabs` / `new_tab` / `close_tab` / `switch_tab` | 分頁管理 |
+| `evaluate` | 執行任意 JavaScript |
+| `get_content` | 取得純文字內容 |
+| `cdp_json` | 原始 CDP JSON-RPC |
+
+CDP HTTP 端點同步暴露：`http://localhost:<port>/json`（所有 tab 的 WebSocket URL）、`http://localhost:<port>/json/protocol`（CDP 協議定義）。任何 WebSocket 客戶端（Playwright、Puppeteer）可直接附接到正在運行的 AIpuss 瀏覽器。
+
 ## 引用生命周期
 
 `@e1`、`@e2` 等引用在**頁面變化後失效**（點擊連結、表單送出、動態載入）。
@@ -214,7 +264,11 @@ let provider = AnthropicLLMProvider::new(api_key, "claude-3-5-sonnet".to_string(
 
 ## Hermes Agent 整合
 
-Daemon 啟動後，Hermes 的 `browser_tool.py` 自動透過 CLI 或 WebSocket 控制瀏覽器，支援導航、快照、截圖、點擊、填寫、滾動、資料抓取。
+Hermes Agent 透過兩種方式整合 AIpuss：
+
+**首選：MCP（推薦）** — `agent-browser --enable-mcp` 啟動後，Hermes 自動發現 MCP 工具，無需任何額外設定。
+
+**備選：Daemon CLI/WebSocket** — 啟動 `aipuss-browser stream enable` 後，Hermes 的 `browser_tool.py` 透過 CLI 或 WebSocket 控制瀏覽器，支援導航、快照、截圖、點擊、填寫、滾動、資料抓取。
 
 ### macOS 24/7 後台運行
 
